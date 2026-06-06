@@ -14,3 +14,28 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* Prevent native tap highlight overlays on iOS and prevent accidental text selections */
+button, a, [role="button"], select, input[type="range"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.select-none {
+  user-select: none;
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155; /* slate-705 */
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569; /* slate-605 */
+}
