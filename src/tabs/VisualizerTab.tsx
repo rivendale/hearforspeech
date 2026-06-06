@@ -111,7 +111,7 @@ export function VisualizerTab() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
 
-  // Environmental Stress Synthesizer States
+  // Background Noise Practice states
   const [isNoiseEnabled, setIsNoiseEnabled] = useState(() => localStorage.getItem('hfs_noise_enabled') === 'true');
   const [noiseLevel, setNoiseLevel] = useState(() => parseInt(localStorage.getItem('hfs_noise_level') || '30'));
 
@@ -579,6 +579,11 @@ export function VisualizerTab() {
 
   const startRecording = async () => {
     try {
+      const consentConfirmed = confirm(
+        "Recording consent reminder: make sure you have appropriate student/client or caregiver consent before recording audio. Saved recordings stay local to this device unless exported. Continue?"
+      );
+      if (!consentConfirmed) return;
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
@@ -610,7 +615,7 @@ export function VisualizerTab() {
         const newRec: Recording = { 
           date: dateStr, 
           audio: blob, 
-          name: `Speech Calibration${phonemeText} - ${dateStr}` 
+          name: `Speech Recording${phonemeText} - ${dateStr}` 
         };
 
         const finalRec = masterKey ? await encryptRecording(newRec, masterKey) : newRec;
@@ -692,7 +697,7 @@ export function VisualizerTab() {
       {/* Target Phoneme Dropdown Selector */}
       <div className="bg-slate-800 border border-slate-700/80 p-4 rounded-3xl shadow-lg space-y-2">
         <label className="block text-xs font-bold text-slate-400 tracking-widest uppercase">
-          Target Phoneme Calibration:
+          Target Sound:
         </label>
         <select 
           value={selectedPhoneme}
@@ -752,12 +757,12 @@ export function VisualizerTab() {
         </div>
       </div>
 
-      {/* Environmental Stress Simulator Panel */}
+      {/* Background Noise Practice Panel */}
       <div className="bg-slate-800 border border-slate-700/80 p-4.5 rounded-3xl shadow-lg space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className="text-indigo-400 animate-pulse" size={16} />
-            <span className="text-xs font-bold text-slate-350 tracking-wider uppercase">Environmental Noise Simulator</span>
+            <span className="text-xs font-bold text-slate-350 tracking-wider uppercase">Background Noise Practice</span>
           </div>
           {/* Toggle Switch */}
           <button
@@ -773,13 +778,13 @@ export function VisualizerTab() {
         </div>
 
         <p className="text-[10px] text-slate-400 leading-relaxed font-normal text-left">
-          Injects synthesized ambient low-frequency room chatter and noise to test student intelligibility limits under stress.
+          Adds synthesized room noise for optional practice in a more realistic listening environment.
         </p>
 
         {isNoiseEnabled && (
           <div className="space-y-1.5 pt-1 animate-fadeIn">
             <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
-              <span>Auditory Noise Level:</span>
+              <span>Background Noise Level:</span>
               <span className="font-mono text-indigo-400">{noiseLevel}%</span>
             </div>
             <input
@@ -802,7 +807,7 @@ export function VisualizerTab() {
             className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-indigo-500 via-purple-550 to-pink-500 hover:from-indigo-600 hover:to-pink-600 text-white font-bold py-4.5 px-8 rounded-2xl shadow-xl shadow-indigo-500/10 active:scale-98 transition-all duration-300 min-h-[48px]"
           >
             <Mic size={22} className="animate-pulse" />
-            <span className="text-sm tracking-wider uppercase">Start Calibration</span>
+            <span className="text-sm tracking-wider uppercase">Start Biofeedback Recording</span>
           </button>
         ) : (
           <button 
@@ -810,7 +815,7 @@ export function VisualizerTab() {
             className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-rose-500 to-red-650 hover:from-rose-600 hover:to-red-700 text-white font-bold py-4.5 px-8 rounded-2xl shadow-xl shadow-red-500/15 active:scale-98 transition-all duration-300 animate-pulse min-h-[48px]"
           >
             <Square size={18} />
-            <span className="text-sm tracking-wider uppercase">Halt Calibration</span>
+            <span className="text-sm tracking-wider uppercase">Stop & Save Recording</span>
           </button>
         )}
       </div>
@@ -818,7 +823,7 @@ export function VisualizerTab() {
       {/* Saved Audio List Section */}
       <div className="space-y-3">
         <h3 className="font-bold text-sm text-slate-400 tracking-widest uppercase flex items-center gap-2">
-          <span>Calibration Database</span>
+          <span>Saved Recordings</span>
           <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
             {savedRecordings.length}
           </span>

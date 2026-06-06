@@ -1,115 +1,208 @@
-# Hear for Speech: Clinical Speech Intelligibility Progressive Web App (PWA)
+# Hear for Speech
 
-Hear for Speech is a privacy-first, offline-capable Progressive Web App (PWA) designed for older adolescents, parents, and Speech-Language Pathologists (SLPs). It provides visual-acoustic biofeedback, quantitative session tracking, ambient noise simulations, and secure local data locking using biometric passkeys.
+Hear for Speech is a local-first, offline-capable Progressive Web App (PWA) for Speech-Language Pathologists (SLPs), students, and caregivers. The app supports quick therapy-session data collection, editable documentation, home practice, listener checks, acoustic biofeedback, and local export/import.
 
-This app is built on a **Zero-Cloud Architecture**—all records, configurations, voice recordings, and passkey biometric references remain strictly inside the user's local browser sandbox.
+The primary workflow is now session-centered:
 
----
+**Client or student → Goal → Session → Trials → Cueing → Session note → Home practice → Progress**
 
-## 🚀 Key Features
-
-### 1. Acoustic Biofeedback & Formant Targeting
-* **Late 8 Phonemes**: Specific calibration targets for `/r/`, `/s/`, `/z/`, `/l/`, `/th/`, `/sh/`, `/ch/`, and `/zh/`.
-* **F2/F3 Spectral Guideline Bands**: Real-time Fast Fourier Transform (FFT) analysis displays reference lines for F2 (~1600Hz) and F3 (~2200Hz).
-* **Coarticulation Peak Detection**: Automatically alerts when formant peaks pinch close together (frequency delta $< 450\text{ Hz}$), indicating retroflex or bunched tongue movements for rhotic `/r/` target sounds.
-
-### 2. Environmental Stress Simulator
-* **Web Audio Noise Synthesizer**: Synthesizes low-frequency rumble and classroom chatter locally.
-* **Volume Slider (0-100%)**: Evaluates speech intelligibility and articulation durability under realistic distractions.
-
-### 3. Quantitative Session Tracker & Visual Progress
-* **Longitudinal SVG Progress Chart**: Responsive client-side SVG line graph plotting Clinician PCC (indigo solid line) vs. Naïve Intelligibility (emerald dashed line) over the last 6 logs.
-* **Articulation Clarity Index**: 1-5 rating log.
-* **PCC (Percentage of Consonants Correct) Calculator**: Linked to the Sentence Intelligibility Test (SIT) scoring sheet.
-* **Automatic notes pre-filling**: Synced with active target phonemes and noise settings for fast charting.
-
-### 4. Passwordless Naïve Listener Assessment Panel
-* **Interactive Matrix**: Pass the device to an unfamiliar adult or parent to read standardized SIT-like sentences. Tap individual words to mark them Clear/Unclear.
-* **Auto-Computed Intelligibility**: Real-time percentage tracking that commits directly to the local IndexedDB using the version 5 database schema.
-
-### 5. Client-Side Biometric Lock (Passkeys & PIN)
-* **WebAuthn Biometrics**: Lock and unlock session logs locally using FaceID, TouchID, Android Fingerprint, or Windows Hello.
-* **Custom Keypad Modal**: In-app 4-digit backup PIN configuration to replace standard browser prompts.
-* **Device-Local Execution**: Passkeys are bound to the specific physical device and browser. Users can register a passkey locally on their phone, tablet, and computer independently.
-
-### 6. Seamless Patient-Mediated Data Handoff
-* **Lightweight QR Code Handoff**: Synchronize session history from computer to phone (or vice-versa) instantly. Encodes session logs as a compressed, URL-safe Base64 hash appended to the app URL (`#handoff=...`). Simply scan the screen QR code with the phone camera to open and merge logs!
-* **Native Web Share API**: Share backup `.json` files directly to other apps (AirDrop, Bluetooth, Email, Messages) on iOS and Android.
-* **Clipboard Sync**: Quick export/import using a one-click clipboard reader.
-* **Drag-and-Drop Dropzone**: Drag and drop `.json` backup files directly over the Exchange tab to trigger visual import confirmations.
-* **Merge-Union Resolver**: Appends non-duplicate records automatically to prevent historical data loss.
+Hear for Speech supports SLP judgment. It does not diagnose, prescribe treatment, replace clinical decision-making, or determine eligibility.
 
 ---
 
-## 📱 Mobile PWA Optimization Guide
+## Guided SLP Workflow
 
-Hear for Speech is optimized to feel like a premium native utility. To run the app on your mobile device:
+### Start Session
+1. Open the app to the **Session** tab.
+2. Select an existing client/student or create a local profile.
+3. Select an active goal or create one for the client.
+4. Pick a target sound/area and practice level:
+   - Sound
+   - Syllable
+   - Word
+   - Phrase
+   - Sentence
+   - Conversation
+5. Run trials using large tablet-friendly buttons:
+   - Correct
+   - Approx
+   - Not yet
+6. Select cue level for upcoming trials:
+   - Independent
+   - Minimal
+   - Moderate
+   - Maximal
+7. Add strategy chips as needed:
+   - Visual cue
+   - Verbal cue
+   - Model
+   - Slowed rate
+   - Repetition
+   - Contrast
+   - Biofeedback
+   - Self-monitoring
+8. End the session, edit the generated documentation and home practice, then save locally.
 
-### iOS (Safari)
-1. Open **Safari** and navigate to `https://hearforspeech.com`.
-2. Tap the **Share** button at the bottom of the screen.
-3. Scroll down and select **Add to Home Screen**.
-4. Launch the PWA from your Home Screen.
-   * *Status Bar Melt*: The layout uses `black-translucent` meta tags, melting the app window directly into the hardware display bezels.
+### Session Data
+The guided workflow calculates:
 
-### Android (Chrome / Pixel)
-1. Open **Chrome** and navigate to `https://hearforspeech.com`.
-2. Tap the **Install App** button on the bottom banner, or select "Install app" / "Add to Home screen" from Chrome's menu.
-3. Launch from the home screen for an immersive, standalone app wrapper.
+- Total trials
+- Correct, approximate, and not-yet responses
+- Independent accuracy
+- Supported accuracy
+- Most common cue level
+- Strategies used
+
+Accuracy definitions:
+
+- **Independent accuracy** = correct trials with independent cueing / total trials
+- **Supported accuracy** = correct or approximate trials after cueing / total trials
+
+Both values appear in generated session notes so the clinician can describe performance and support needs clearly.
+
+### Session Notes
+After ending a session, Hear for Speech generates editable drafts in two formats:
+
+- **School/IEP style note** with session summary, goal addressed, objective data, cueing, strategies, clinical observation, and next step
+- **SOAP note** with S, O, A, and P sections
+
+Generated text is a draft. Review and edit before copying into clinical, school, or billing documentation.
+
+### Home Practice
+The app generates editable caregiver/student-friendly practice text with:
+
+- What was practiced today
+- 5–10 practice targets
+- A simple cue
+- Practice schedule
+- Caregiver note
+- Encouragement language
+
+Language mode can be toggled between **Clinician**, **Student**, and **Caregiver** so outputs can be more clinical or more plain-language.
 
 ---
 
-## ⚙️ Enabling Native Local Gemini Nano AI
+## Listener Check
 
-Hear for Speech uses Chrome's experimental **Prompt API** for local clinical goal analysis. Follow these developer setup steps on supported browsers (Desktop Chrome or Chrome on Google Pixel devices):
+Use **Listener Check** when you want a simple clarity rating from an unfamiliar listener.
 
-1. Open Chrome.
-2. Configure flags:
-   * Go to `chrome://flags/#optimization-guide-on-device-model` -> Select **Enabled BypassPrefRequirement**.
-   * Go to `chrome://flags/#prompt-api-for-gemini-nano` -> Select **Enabled**.
-3. Relaunch Chrome.
-4. Open the Developer Tools console to trigger model downloads.
-5. The app header badge will display **AI Active**. If native AI is unavailable, the app falls back to a zero-latency local clinical rules-engine.
+1. Start or run a guided session.
+2. Tap **Listener Check**.
+3. Hand the device to the listener.
+4. The listener sees only a simple scoring screen, not private notes or other client records.
+5. The listener marks each item as **Clear** or **Unclear** and selects confidence.
+6. Results return to the SLP summary and can be saved with the session/client history.
 
----
-
-## 🔒 Security & HIPAA Compliance
-
-As an offline-first app, Hear for Speech guarantees absolute data privacy.
-* **IndexedDB/Dexie.js Storage**: Session logs and audio files are stored in browser sandboxes. No cloud servers are contacted.
-* **Local Biometrics**: Biometric signatures used for lock screens remain inside the device's secure enclave (T2/TPM). No biometric data is sent or stored.
-* **HIPAA Alignment**: By locking logs behind passkeys and keeping database operations 100% device-local, clinicians can safely use the app on shared hardware without exposing Protected Health Information (PHI).
+The older Data tab also includes a Listener Check entry point for legacy session logs.
 
 ---
 
-## 🛠️ Data Backup & Schema Specifications
+## Progress Dashboard
 
-Exported backups are formatted as JSON payloads. This schema is verified upon import to ensure data integrity:
+The Session tab includes a local client progress section showing:
+
+- Recent guided sessions
+- Active goals
+- Accuracy over time
+- Cueing trend over time
+- Latest Listener Check result
+- Last session summary
+- Conservative “Consider...” next-step text based only on recorded data
+
+Next-step text is intentionally clinician-controlled and conservative. It is not an automated treatment decision.
+
+---
+
+## Biofeedback and Practice Tools
+
+### Acoustic Biofeedback
+- Late-8 target sounds for `/r/`, `/s/`, `/z/`, `/l/`, `/th/`, `/sh/`, `/ch/`, and `/zh/`
+- Live waveform display
+- Optional reference overlays for target sounds
+- Local saved recordings with a recording-consent reminder before audio capture
+
+### Background Noise Practice
+- Local Web Audio noise generation
+- Adjustable background noise level
+- Optional practice in more realistic listening conditions
+
+---
+
+## Local-First Privacy and Consent
+
+Hear for Speech is local-first and designed to minimize cloud exposure.
+
+- Client profiles, goals, guided sessions, trials, legacy logs, and recordings are stored in the browser’s local IndexedDB/Dexie database.
+- The guided workflow does not add cloud services, third-party analytics, server storage, or external AI calls.
+- Optional browser/device security can lock the app with local passkey/PIN support.
+- Recording workflows remind users to confirm consent before saving audio.
+- Exported files, clipboard text, and QR handoffs may contain protected or sensitive information.
+- The Session tab includes demo mode with a fake sample client.
+- The Session tab includes one-tap deletion for a selected client’s local guided-session data.
+
+Organizations and clinicians remain responsible for device controls, consent, retention, backup handling, secure export storage, and HIPAA/FERPA compliance review.
+
+---
+
+## Export Data Safely
+
+Use the **Export** tab to back up or move local data.
+
+- **Full backup** includes session data and audio recordings.
+- **Logs only** excludes audio recordings but may still contain sensitive notes and client/session details.
+- **QR handoff** is best for lightweight log transfer between devices.
+- **Import/restore** supports merge or overwrite modes.
+
+Before sharing an export, confirm that the recipient, storage location, and transfer method are approved for your setting.
+
+---
+
+## Optional Local Browser Assistant
+
+The existing optional browser-native assistant uses supported local browser APIs when available and falls back to local rule-based text. The guided session workflow does not depend on it and does not add external AI services.
+
+---
+
+## Data Backup Schema
+
+Exported backups are JSON payloads. Older backups with only `logs` and `recordings` remain supported. Newer backups may also include guided-session tables:
 
 ```json
 {
   "appName": "HearForSpeech",
   "exportedAt": "2026-06-06T17:00:00.000Z",
   "data": {
+    "clients": [
+      {
+        "id": "client-id",
+        "displayName": "Taylor Demo",
+        "initials": "TD",
+        "ageGroup": "School-age",
+        "createdAt": "2026-06-06T17:00:00.000Z",
+        "updatedAt": "2026-06-06T17:00:00.000Z"
+      }
+    ],
+    "goals": [],
+    "guidedSessions": [],
+    "trials": [],
+    "listenerChecks": [],
     "logs": [
       {
-        "date": "2026-06-06",
+        "date": "6/6/26, 1:00 PM",
         "rating": 4,
-        "pcc": 85,
-        "environment": "Quiet Space",
-        "repairStrategies": ["Self-Correction", "Slower Rate"],
-        "notes": "Focused on retroflex /r/ coarticulation under environmental noise.",
-        "environmentalDifficulty": 25,
-        "environmentalNoiseLevel": 25,
+        "pcc": 82,
+        "environment": "Therapy room",
+        "repairStrategies": ["Visual cue", "Slowed rate"],
+        "notes": "Editable session note text",
         "naiveListenerScore": 90
       }
     ],
     "recordings": [
       {
         "id": 1,
-        "date": "2026-06-06",
-        "name": "Speech Calibration/r/ - 2026-06-06",
-        "audioBase64": "data:audio/webm;base64,GkXfo59ChoEBQveBAUL..."
+        "date": "6/6/26, 1:00 PM",
+        "name": "Speech Recording /r/",
+        "audioBase64": "data:audio/webm;base64,..."
       }
     ]
   }
@@ -118,27 +211,16 @@ Exported backups are formatted as JSON payloads. This schema is verified upon im
 
 ---
 
-## 💻 Local Development
+## Local Development
 
 ### Prerequisites
-* **Node.js** (v18 or higher)
-* **npm**
+- Node.js 18 or higher
+- npm
 
-### Installation
+### Commands
 ```bash
-# Clone the repository
-git clone https://github.com/rivendale/hearforspeech.git
-cd hearforspeech
-
-# Install dependencies
 npm install
-
-# Run Vite development server
 npm run dev
-
-# Run ESLint validation
 npm run lint
-
-# Build production bundle
 npm run build
 ```

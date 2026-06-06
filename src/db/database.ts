@@ -33,9 +33,92 @@ export interface Recording {
   nameIv?: string;
 }
 
+export type PracticeLevel = 'sound' | 'syllable' | 'word' | 'phrase' | 'sentence' | 'conversation';
+export type TrialResult = 'correct' | 'approx' | 'not_yet';
+export type CueLevel = 'independent' | 'minimal' | 'moderate' | 'maximal';
+export type GoalStatus = 'active' | 'paused' | 'met' | 'archived';
+export type ListenerConfidence = 'low' | 'medium' | 'high';
+
+export interface ClientProfile {
+  id: string;
+  displayName: string;
+  initials: string;
+  ageGroup?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Goal {
+  id: string;
+  clientId: string;
+  targetArea: string;
+  targetPhoneme?: string;
+  level: PracticeLevel;
+  accuracyCriterion?: string;
+  cueingCriterion?: string;
+  context?: string;
+  status: GoalStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GuidedSession {
+  id: string;
+  clientId: string;
+  goalId?: string;
+  date: string;
+  durationMinutes?: number;
+  setting?: string;
+  practiceLevel: PracticeLevel;
+  target: string;
+  independentAccuracy: number;
+  supportedAccuracy: number;
+  totalTrials: number;
+  cueSummary: string;
+  strategies: string[];
+  note: string;
+  soapNote?: string;
+  homePractice: string;
+  listenerCheckScore?: number;
+  listenerConfidence?: ListenerConfidence;
+  sessionLogId?: number;
+  createdAt: string;
+}
+
+export interface Trial {
+  id: string;
+  sessionId: string;
+  target: string;
+  practiceLevel: PracticeLevel;
+  result: TrialResult;
+  cueLevel: CueLevel;
+  strategyTags: string[];
+  notes?: string;
+  createdAt: string;
+}
+
+export interface ListenerCheck {
+  id: string;
+  sessionId?: string;
+  clientId: string;
+  itemText: string;
+  clearItems: number;
+  totalItems: number;
+  score: number;
+  confidence: ListenerConfidence;
+  notes?: string;
+  createdAt: string;
+}
+
 export class HearForSpeechDB extends Dexie {
   logs!: Table<SessionLog>;
   recordings!: Table<Recording>;
+  clients!: Table<ClientProfile>;
+  goals!: Table<Goal>;
+  guidedSessions!: Table<GuidedSession>;
+  trials!: Table<Trial>;
+  listenerChecks!: Table<ListenerCheck>;
 
   constructor() {
     super('HearForSpeechDB');
@@ -51,6 +134,15 @@ export class HearForSpeechDB extends Dexie {
       logs: '++id, date, rating, pcc, environment, environmentalDifficulty, environmentalNoiseLevel, naiveListenerScore',
       recordings: '++id, date, name'
     });
+    this.version(6).stores({
+      logs: '++id, date, rating, pcc, environment, environmentalDifficulty, environmentalNoiseLevel, naiveListenerScore',
+      recordings: '++id, date, name',
+      clients: 'id, displayName, initials, updatedAt',
+      goals: 'id, clientId, status, targetArea, targetPhoneme, level, updatedAt',
+      guidedSessions: 'id, clientId, goalId, date, createdAt, target, practiceLevel',
+      trials: 'id, sessionId, createdAt, result, cueLevel',
+      listenerChecks: 'id, clientId, sessionId, createdAt, score'
+    });
   }
 }
 
@@ -61,6 +153,11 @@ export interface BackupPayload {
   exportedAt: string;
   data: {
     logs: SessionLog[];
+    clients?: ClientProfile[];
+    goals?: Goal[];
+    guidedSessions?: GuidedSession[];
+    trials?: Trial[];
+    listenerChecks?: ListenerCheck[];
     recordings: {
       id?: number;
       date: string;

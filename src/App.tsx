@@ -13,6 +13,7 @@ import {
 } from './utils/crypto';
 import { decompressData } from './utils/compression';
 import { ClinicalAICopilot } from './components/ClinicalAICopilot';
+import { SessionTab } from './tabs/SessionTab';
 import { VisualizerTab } from './tabs/VisualizerTab';
 import { TrackerTab } from './tabs/TrackerTab';
 import { ProtocolTab } from './tabs/ProtocolTab';
@@ -349,7 +350,7 @@ export default function App() {
 
   // Disable security lock (decrypt database in-place)
   const disableSecurity = async () => {
-    if (confirm("Are you sure you want to disable local screen security? Articulation logs and voice prints will be stored in plaintext.")) {
+    if (confirm("Are you sure you want to disable local screen security? Articulation logs and audio recordings will be stored in plaintext on this device.")) {
       try {
         if (masterKey) {
           // Decrypt database in-place
@@ -671,7 +672,7 @@ export default function App() {
             <h1 className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               Hear for Speech
             </h1>
-            <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Clinical Intelligibility Toolkit</p>
+            <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Guided SLP Session Toolkit</p>
           </div>
         </div>
         
@@ -691,6 +692,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-lg w-full mx-auto p-4 pb-28 flex flex-col justify-start overflow-y-auto">
+        {activeTab === 'session' && <SessionTab />}
         {activeTab === 'visualizer' && <VisualizerTab />}
         {activeTab === 'tracker' && <TrackerTab />}
         {activeTab === 'protocol' && <ProtocolTab />}
@@ -704,6 +706,17 @@ export default function App() {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-slate-950/95 backdrop-blur-lg border-t border-slate-900 flex justify-around p-2.5 z-50 rounded-t-2xl shadow-2xl">
+        <button 
+          onClick={() => setActiveTab('session')} 
+          className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
+            activeTab === 'session' ? 'text-indigo-400 font-semibold' : 'text-slate-550 hover:text-slate-350'
+          }`}
+        >
+          {activeTab === 'session' && <span className="absolute inset-x-4 top-0 h-0.5 bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full" />}
+          <Activity size={20} className={`transition-transform duration-300 ${activeTab === 'session' ? 'scale-110' : 'scale-100'}`} />
+          <span className="text-[10px] mt-1 tracking-wider uppercase">Session</span>
+        </button>
+
         <button 
           onClick={() => setActiveTab('visualizer')} 
           className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
@@ -723,7 +736,7 @@ export default function App() {
         >
           {activeTab === 'tracker' && <span className="absolute inset-x-4 top-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" />}
           <BarChart3 size={20} className={`transition-transform duration-300 ${activeTab === 'tracker' ? 'scale-110' : 'scale-100'}`} />
-          <span className="text-[10px] mt-1 tracking-wider uppercase">Analytics</span>
+          <span className="text-[10px] mt-1 tracking-wider uppercase">Data</span>
         </button>
 
         <button 
@@ -745,7 +758,7 @@ export default function App() {
         >
           {activeTab === 'export' && <span className="absolute inset-x-4 top-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" />}
           <Download size={20} className={`transition-transform duration-300 ${activeTab === 'export' ? 'scale-110' : 'scale-100'}`} />
-          <span className="text-[10px] mt-1 tracking-wider uppercase">Exchange</span>
+          <span className="text-[10px] mt-1 tracking-wider uppercase">Export</span>
         </button>
       </nav>
 
@@ -766,7 +779,7 @@ export default function App() {
           </div>
 
           <p className="text-xs text-slate-200 leading-relaxed font-semibold">
-            Install <strong className="text-indigo-400">Hear for Speech</strong> to enable full-screen biofeedback and 100% offline clinical use.
+            Install <strong className="text-indigo-400">Hear for Speech</strong> to enable full-screen biofeedback and offline-first clinical use.
           </p>
 
           {isIOS ? (
@@ -845,7 +858,7 @@ export default function App() {
                   </div>
                 </div>
                 <p className="text-[10px] text-slate-500 italic">
-                  Note: Enabling flags unlocks native GPU/NPU models. Your data remains 100% offline.
+                  Note: Enabling flags unlocks native GPU/NPU models. Local prompts are designed to stay on this device.
                 </p>
               </div>
             )}

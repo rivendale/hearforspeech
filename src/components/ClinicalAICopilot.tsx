@@ -78,7 +78,7 @@ export function ClinicalAICopilot() {
     }
 
     if (q.includes('stress') || q.includes('noise') || q.includes('cafeteria') || q.includes('classroom')) {
-      return "Environmental Stress Testing: Use the background noise simulator in the Biofeedback tab. SLPs can dynamically scale ambient hum/noise levels to test speech durability under realistic classroom distractions.";
+      return "Background Noise Practice: Use the background noise tool in the Biofeedback tab. SLPs can scale ambient room-noise levels to practice speech clarity under realistic classroom distractions.";
     }
 
     return "I am here to assist with clinical articulation metrics, phoneme visual visualizers, and PWA setup. Try asking:\n- 'How do I teach /r/ coarticulation?'\n- 'Explain the Hardware Glitch analogy'\n- 'How do I configure Chrome Gemini Nano flags?'";
