@@ -729,7 +729,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-lg sm:max-w-2xl w-full mx-auto p-3 sm:p-4 pb-28 flex flex-col justify-start overflow-y-auto">
-        {['session', 'assessment'].includes(activeTab) && (
+        {activeTab === 'assessment' && (
           <WorkflowGuide activeTab={activeTab} onJump={setActiveTab} />
         )}
         {activeTab === 'session' && <SessionTab />}
