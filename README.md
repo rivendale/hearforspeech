@@ -60,6 +60,37 @@ Accuracy definitions:
 
 Both values appear in generated session notes so the clinician can describe performance and support needs clearly.
 
+---
+
+## Guided Assessment Workflow
+
+Use the **Assess** tab when the SLP needs a diagnostic-style walkthrough for an adolescent student, not just a single test score.
+
+The built-in adolescent speech clarity/intelligibility guide walks line-by-line through:
+
+1. Consent and student orientation
+2. Quick case history
+3. Hearing access and oral-mechanism screening checklist
+4. Connected speech sample recording
+5. Sound probes for common adolescent speech targets
+6. Reading and sentence sample recording
+7. Stimulability and cueing trials
+8. Listener Check support
+9. Editable assessment summary and follow-up considerations
+
+Each assessment line includes:
+
+- The exact SLP prompt
+- Teen-friendly helper wording
+- Result buttons such as clear, distorted, substituted, omitted, concern, monitor, or improved with cue
+- Optional cue-level tagging
+- SLP notes
+- A one-tap recording control linked to that assessment item
+
+Assessment audio is saved locally through the same recording storage used elsewhere in the app. If local security is enabled, recordings are encrypted using the existing local master key flow.
+
+The generated assessment summary is editable and conservative. It summarizes checklist entries, recordings, sound probes, cueing/stimulability, and functional observation flags. The SLP remains responsible for reviewing recordings, selecting formal measures when required, interpreting findings, and writing final diagnostic conclusions.
+
 ### Session Notes
 After ending a session, Hear for Speech generates editable drafts in two formats:
 
@@ -186,6 +217,8 @@ Exported backups are JSON payloads. Older backups with only `logs` and `recordin
     "guidedSessions": [],
     "trials": [],
     "listenerChecks": [],
+    "assessments": [],
+    "assessmentItems": [],
     "logs": [
       {
         "date": "6/6/26, 1:00 PM",

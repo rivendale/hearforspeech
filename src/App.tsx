@@ -14,6 +14,7 @@ import {
 import { decompressData } from './utils/compression';
 import { ClinicalAICopilot } from './components/ClinicalAICopilot';
 import { SessionTab } from './tabs/SessionTab';
+import { AssessmentTab } from './tabs/AssessmentTab';
 import { VisualizerTab } from './tabs/VisualizerTab';
 import { TrackerTab } from './tabs/TrackerTab';
 import { ProtocolTab } from './tabs/ProtocolTab';
@@ -693,6 +694,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-lg w-full mx-auto p-4 pb-28 flex flex-col justify-start overflow-y-auto">
         {activeTab === 'session' && <SessionTab />}
+        {activeTab === 'assessment' && <AssessmentTab />}
         {activeTab === 'visualizer' && <VisualizerTab />}
         {activeTab === 'tracker' && <TrackerTab />}
         {activeTab === 'protocol' && <ProtocolTab />}
@@ -715,6 +717,17 @@ export default function App() {
           {activeTab === 'session' && <span className="absolute inset-x-4 top-0 h-0.5 bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full" />}
           <Activity size={20} className={`transition-transform duration-300 ${activeTab === 'session' ? 'scale-110' : 'scale-100'}`} />
           <span className="text-[10px] mt-1 tracking-wider uppercase">Session</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('assessment')} 
+          className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
+            activeTab === 'assessment' ? 'text-cyan-400 font-semibold' : 'text-slate-550 hover:text-slate-350'
+          }`}
+        >
+          {activeTab === 'assessment' && <span className="absolute inset-x-4 top-0 h-0.5 bg-gradient-to-r from-cyan-400 to-indigo-500 rounded-full" />}
+          <ClipboardList size={20} className={`transition-transform duration-300 ${activeTab === 'assessment' ? 'scale-110' : 'scale-100'}`} />
+          <span className="text-[10px] mt-1 tracking-wider uppercase">Assess</span>
         </button>
 
         <button 
