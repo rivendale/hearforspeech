@@ -7,6 +7,7 @@ import {
   Ear,
   Home,
   Plus,
+  Printer,
   Save,
   Sparkles,
   Target,
@@ -29,6 +30,7 @@ import {
 } from '../db/database';
 import { useStore } from '../store/useStore';
 import { encryptSessionLog } from '../utils/crypto';
+import { PrintableHandout } from '../components/PrintableHandout';
 
 type WorkflowMode = 'setup' | 'running' | 'compose';
 type LanguageMode = 'clinician' | 'student' | 'caregiver';
@@ -1281,18 +1283,50 @@ export function SessionTab() {
               aria-label="Editable home practice text"
               className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 leading-relaxed select-text ${FOCUS_CLASS}`}
             />
-            <button
-              type="button"
-              onClick={() => copyText(homePractice)}
-              className={`${PRIMARY_BUTTON} w-full bg-slate-900 border border-slate-700 text-slate-200 flex items-center justify-center gap-2`}
-            >
-              <Copy size={16} />
-              Copy Home Practice
-            </button>
+            <div className="bg-white border border-blue-100 rounded-3xl p-4 text-left shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Patient handout preview</p>
+              <h4 className="text-base font-black text-slate-950 mt-1">{selectedClient?.displayName || 'Student'} practice sheet</h4>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                This prints as a clean one-page handout. On phones, choose <strong>Print</strong>, then <strong>Save as PDF</strong> if available.
+              </p>
+              <div className="mt-3 rounded-2xl bg-blue-50 border border-blue-100 p-3 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed select-text">
+                {homePractice}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => copyText(homePractice)}
+                className={`${PRIMARY_BUTTON} w-full bg-slate-900 border border-slate-700 text-slate-200 flex items-center justify-center gap-2`}
+              >
+                <Copy size={16} />
+                Copy Home Practice
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className={`${PRIMARY_BUTTON} w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2`}
+              >
+                <Printer size={16} />
+                Print / Save PDF
+              </button>
+            </div>
             <p className="text-[11px] text-slate-500 leading-relaxed text-left">
               Generated text is a draft for clinician editing. The SLP remains responsible for clinical decisions, documentation, and family instructions.
             </p>
           </section>
+
+          <PrintableHandout
+            title="Speech Practice Sheet"
+            studentName={selectedClient?.displayName}
+            subtitle="Short, positive practice for home or independent review."
+            sections={[
+              { title: 'What We Practiced', body: homePractice.split('\n\n')[0] || `Today we practiced ${target || 'a speech target'}.` },
+              { title: 'Practice Targets and Cue', body: homePractice.split('\n\n').slice(1, 3).join('\n') || homePractice },
+              { title: 'Practice Schedule', body: homePractice.split('\n\n').slice(3).join('\n') || 'Practice for 5 minutes, 3 times this week.' }
+            ]}
+            footerNote="Practice should feel short and encouraging. The SLP reviews and edits this handout before sharing."
+          />
 
           {saveStatus && (
             <div className="bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 rounded-2xl p-3 text-sm font-bold">

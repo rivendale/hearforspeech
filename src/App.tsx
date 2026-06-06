@@ -52,6 +52,68 @@ function CalibrationItem({ label, status, desc }: CalibrationItemProps) {
   );
 }
 
+function WorkflowGuide({
+  activeTab,
+  onJump
+}: {
+  activeTab: string;
+  onJump: (tab: 'session' | 'assessment') => void;
+}) {
+  const isAssessment = activeTab === 'assessment';
+
+  return (
+    <section className="hfs-workflow-card rounded-3xl p-4 mb-4 text-left">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-blue-700">
+            Simple workflow
+          </p>
+          <h2 className="text-lg font-black text-slate-950 mt-1">
+            {isAssessment ? 'Assess → record → print practice' : 'Session → trials → note → handout'}
+          </h2>
+          <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+            Start with the big button path. The app keeps notes local, drafts editable text, and lets you print or save a PDF for the student/family.
+          </p>
+        </div>
+        <Sparkles className="text-blue-600 shrink-0" size={22} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mt-4">
+        {[
+          { step: '1', title: isAssessment ? 'Pick path' : 'Pick goal', body: isAssessment ? '10-min, teen, /r/, school' : 'Client, goal, target' },
+          { step: '2', title: isAssessment ? 'Record lines' : 'Tap trials', body: isAssessment ? 'Say, listen, note' : 'Correct, approx, not yet' },
+          { step: '3', title: 'Print PDF', body: 'Home practice sheet' }
+        ].map(item => (
+          <div key={item.step} className="rounded-2xl border border-blue-100 bg-white/80 p-3">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">
+              {item.step}
+            </span>
+            <p className="text-xs font-black text-slate-950 mt-2">{item.title}</p>
+            <p className="text-[10px] text-slate-600 leading-snug mt-1">{item.body}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <button
+          type="button"
+          onClick={() => onJump('session')}
+          className={`min-h-[44px] rounded-2xl text-xs font-black transition ${activeTab === 'session' ? 'bg-blue-600 text-white' : 'bg-white border border-blue-100 text-blue-700'}`}
+        >
+          Start Session
+        </button>
+        <button
+          type="button"
+          onClick={() => onJump('assessment')}
+          className={`min-h-[44px] rounded-2xl text-xs font-black transition ${activeTab === 'assessment' ? 'bg-blue-600 text-white' : 'bg-white border border-blue-100 text-blue-700'}`}
+        >
+          Start Assessment
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const { 
     activeTab, 
@@ -636,9 +698,9 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased font-sans select-none">
+    <div className="hfs-daylight min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased font-sans select-none">
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-900 px-6 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-900 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="bg-indigo-650 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20">
             <Activity size={22} className="animate-pulse" />
@@ -647,7 +709,7 @@ export default function App() {
             <h1 className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               Hear for Speech
             </h1>
-            <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Guided SLP Session Toolkit</p>
+            <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Bright guided SLP toolkit</p>
           </div>
         </div>
         
@@ -666,7 +728,10 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-lg w-full mx-auto p-4 pb-28 flex flex-col justify-start overflow-y-auto">
+      <main className="flex-1 max-w-lg sm:max-w-2xl w-full mx-auto p-3 sm:p-4 pb-28 flex flex-col justify-start overflow-y-auto">
+        {['session', 'assessment'].includes(activeTab) && (
+          <WorkflowGuide activeTab={activeTab} onJump={setActiveTab} />
+        )}
         {activeTab === 'session' && <SessionTab />}
         {activeTab === 'assessment' && <AssessmentTab />}
         {activeTab === 'visualizer' && <VisualizerTab />}
