@@ -1,21 +1,27 @@
 import { useState, useEffect } from 'react';
 import { Activity, BarChart3, Brain, Sparkles, ChevronDown, ChevronUp, Cpu } from 'lucide-react';
 import { useStore } from '../store/useStore';
-
-interface AIAssistant {
-  capabilities: () => Promise<{ available: 'yes' | 'no' | 'readily' }>;
-  create: (options?: { systemPrompt?: string }) => Promise<{
-    prompt: (text: string) => Promise<string>;
-  }>;
-}
-
-interface WindowWithAI extends Window {
-  ai?: {
-    assistant: AIAssistant;
-  };
-}
+import { createBuiltInAISession, getDesktopFlagSteps, getPlatformInfo, getUnsupportedMobileSteps } from '../utils/builtInAI';
 
 const ARIZONA_PHONEMES = ['/r/', '/s/', '/z/', '/l/', '/th/', '/sh/', '/ch/', '/zh/'];
+
+function BuiltInAISetupList() {
+  const { isAndroid, isIOS, isChromium } = getPlatformInfo();
+  const platformLabel = isAndroid ? 'Android Chrome / Google Pixel' : 'iOS Chrome/Safari';
+  const steps = isAndroid || isIOS
+    ? getUnsupportedMobileSteps(platformLabel)
+    : isChromium
+      ? getDesktopFlagSteps()
+      : ['No supported browser built-in AI API was detected. Use local rule-based drafting and guided assessment workflows.'];
+
+  return (
+    <ol className="list-decimal list-inside space-y-1.5 font-normal">
+      {steps.map(step => (
+        <li key={step}>{step}</li>
+      ))}
+    </ol>
+  );
+}
 
 export function ProtocolTab() {
   const { hasLocalAI, aiStatus } = useStore();
@@ -106,18 +112,18 @@ Provide a professional draft in markdown containing:
 3. Clinical repair strategy recommendations.
     `.trim();
 
-    const globalWindow = window as unknown as WindowWithAI;
-    if (globalWindow.ai && globalWindow.ai.assistant && hasLocalAI) {
+    if (hasLocalAI) {
       try {
-        const assistant = await globalWindow.ai.assistant.create({
-          systemPrompt: "You are a professional Speech-Language Pathologist compiling clinical documentation."
-        });
-        const result = await assistant.prompt(promptText);
-        setAiResponse(result);
-        setIsLoadingAI(false);
-        return;
+        const assistant = await createBuiltInAISession("You are a professional Speech-Language Pathologist compiling clinical documentation. Do not diagnose or replace clinical judgment.");
+        if (assistant) {
+          const result = await assistant.prompt(promptText);
+          assistant.destroy?.();
+          setAiResponse(result);
+          setIsLoadingAI(false);
+          return;
+        }
       } catch (err) {
-        console.error("Local Gemini Nano API failed, triggering rules fallback...", err);
+        console.error("Browser built-in model failed, triggering rules fallback...", err);
       }
     }
 
@@ -331,7 +337,7 @@ This functional speech impairment significantly restricts the student's communic
         <div className="flex items-center justify-between border-b border-slate-700/50 pb-2">
           <h3 className="font-extrabold text-base text-slate-100 tracking-tight flex items-center gap-2">
             <Brain size={18} className="text-pink-400" />
-            <span>Local AI Clinical assistant</span>
+            <span>Local Drafting Assistant</span>
           </h3>
           <span className="text-[9px] font-extrabold bg-slate-900 border border-slate-700 text-indigo-400 px-2.5 py-0.5 rounded-full">
             Local-First
@@ -339,8 +345,7 @@ This functional speech impairment significantly restricts the student's communic
         </div>
 
         <p className="text-[11px] text-slate-400 leading-relaxed font-normal text-left">
-          Generates an IDEA-compliant defense, IEP targets, and biofeedback plans. 
-          Uses browser-native Gemini Nano when enabled, or the clinical expert system fallback.
+          Generates an editable draft from local checklist values. Uses browser built-in AI only if the browser exposes it; otherwise it uses the local rules template.
         </p>
 
         {/* AI Status Indicators */}
@@ -360,7 +365,7 @@ This functional speech impairment significantly restricts the student's communic
         >
           <Sparkles size={16} />
           <span className="text-xs uppercase tracking-wider">
-            {isLoadingAI ? "Compiling Case Metrics..." : "Compile IEP Defense Report"}
+            {isLoadingAI ? "Compiling Case Metrics..." : "Draft IEP Support Text"}
           </span>
         </button>
 
@@ -389,20 +394,16 @@ This functional speech impairment significantly restricts the student's communic
             onClick={() => setShowSetup(!showSetup)}
             className="w-full flex items-center justify-between text-slate-500 hover:text-slate-300 transition text-[10px] font-extrabold uppercase tracking-wider py-1.5"
           >
-            <span>Configure Chrome Native Gemini Nano</span>
+            <span>Browser built-in AI support</span>
             {showSetup ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
 
           {showSetup && (
             <div className="bg-slate-900/60 border border-slate-750 p-3.5 rounded-2xl text-[10px] text-slate-400 mt-2 space-y-2 text-left leading-relaxed font-normal">
-              <span className="font-bold text-slate-300 block uppercase tracking-wider">Enable flags on Google Pixel & Chrome:</span>
-              <ol className="list-decimal list-inside space-y-1.5 font-normal">
-                <li>Go to URL <code className="bg-slate-950 text-indigo-400 px-1 py-0.5 rounded font-mono select-all">chrome://flags/#optimization-guide-on-device-model</code> and select <strong className="text-slate-200">Enabled BypassPrefRequirement</strong>.</li>
-                <li>Go to URL <code className="bg-slate-950 text-indigo-400 px-1 py-0.5 rounded font-mono select-all">chrome://flags/#prompt-api-for-gemini-nano</code> and select <strong className="text-slate-200">Enabled</strong>.</li>
-                <li>Restart Chrome, open developer tools, and wait a moment for the background model to download.</li>
-              </ol>
+              <span className="font-bold text-slate-300 block uppercase tracking-wider">What this device supports:</span>
+              <BuiltInAISetupList />
               <p className="text-[9px] text-slate-505 italic">
-                Note: Native execution uses your device's built-in GPU/NPU locally.
+                The Protocol tab and Assess tab do not require browser AI. They still work with local rule-based drafting and clinician review.
               </p>
             </div>
           )}

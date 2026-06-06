@@ -39,8 +39,8 @@ export type CueLevel = 'independent' | 'minimal' | 'moderate' | 'maximal';
 export type GoalStatus = 'active' | 'paused' | 'met' | 'archived';
 export type ListenerConfidence = 'low' | 'medium' | 'high';
 export type AssessmentStatus = 'draft' | 'completed';
-export type AssessmentTemplate = 'adolescent_speech_intelligibility';
-export type AssessmentItemKind = 'checklist' | 'question' | 'speech_sample' | 'sound_probe' | 'stimulability' | 'listener_check' | 'summary';
+export type AssessmentTemplate = 'adolescent_speech_intelligibility' | 'rhotic_r_diagnostic' | 'connected_speech_participation' | 'school_participation_interview';
+export type AssessmentItemKind = 'checklist' | 'question' | 'student_rating' | 'caregiver_interview' | 'participation' | 'speech_sample' | 'sound_probe' | 'stimulability' | 'listener_check' | 'summary';
 
 export interface ClientProfile {
   id: string;
@@ -138,12 +138,17 @@ export interface AssessmentItem {
   sectionTitle: string;
   prompt: string;
   helperText?: string;
+  scriptText?: string;
   kind: AssessmentItemKind;
   status: 'not_started' | 'in_progress' | 'complete';
   result?: string;
   notes?: string;
   cueLevel?: CueLevel;
   recordingIds?: number[];
+  soundTargets?: string[];
+  wordPositions?: string[];
+  analysisTags?: string[];
+  functionalContext?: string;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
