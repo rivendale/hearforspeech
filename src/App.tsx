@@ -36,6 +36,7 @@ interface SessionLog {
   environment: string; // Environment tag
   repairStrategies: string[]; // Strategies utilized
   notes: string;
+  environmentalDifficulty?: number; // 0-100 noise scale
 }
 
 interface Recording {
@@ -54,6 +55,11 @@ class HearForSpeechDB extends Dexie {
     // Upgrade database schema to version 3 to support expanded quantitative clinical metrics
     this.version(3).stores({
       logs: '++id, date, rating, pcc, environment',
+      recordings: '++id, date, name'
+    });
+    // Upgrade database schema to version 4 to support environmental difficulty stress tracking
+    this.version(4).stores({
+      logs: '++id, date, rating, pcc, environment, environmentalDifficulty',
       recordings: '++id, date, name'
     });
   }
@@ -197,6 +203,207 @@ function CalibrationItem({ label, status, desc }: CalibrationItemProps) {
         <span className="text-[10px] text-slate-450 block leading-snug mt-0.5">{desc}</span>
       </div>
     </div>
+  );
+}
+
+// --- Helper Component: Clinical AI Copilot Floating Panel ---
+interface ChatMessage {
+  sender: 'user' | 'bot';
+  text: string;
+}
+
+function ClinicalAICopilot() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      sender: 'bot',
+      text: "Hi! I am your local-first Clinical AI Assistant. How can I help you support adolescent self-advocacy, calibrate target phonemes, or troubleshoot PWA settings?"
+    }
+  ]);
+  const [inputVal, setInputVal] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const { hasLocalAI } = useStore();
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Scroll to bottom when messages update
+  useEffect(() => {
+    if (isOpen) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isOpen]);
+
+  const generateLocalResponse = async (query: string): Promise<string> => {
+    // 1. Try Chrome native Gemini Nano window.ai
+    const globalWindow = window as unknown as WindowWithAI;
+    if (globalWindow.ai && globalWindow.ai.assistant && hasLocalAI) {
+      try {
+        const assistant = await globalWindow.ai.assistant.create({
+          systemPrompt: `You are a helpful, senior clinical AI assistant for Speech-Language Pathologists (SLPs) and parents working with adolescents (14-15 years old) on speech intelligibility. Your tone is professional, technical, and supportive. Use the AVT Clinical Cheat Sheet guidelines (e.g. Hardware Glitch analogy, collaborative intake boundaries, PCC metrics, and phonetic biofeedback). Limit answers to 3 concise bullet points or 1 short paragraph.`
+        });
+        const response = await assistant.prompt(query);
+        return response;
+      } catch (err) {
+        console.error("Gemini Nano chat prompt failed, triggering fallback...", err);
+      }
+    }
+
+    // 2. Rules-based clinical chatbot fallback
+    const q = query.toLowerCase();
+    
+    if (q.includes('glitch') || q.includes('analogy') || q.includes('hardware')) {
+      return "The Hardware Glitch Analogy: Frame speech intelligibility limits as a cochlear implant or acoustic transmission limitation, not a personal failure. This reduces adolescent defensiveness and builds a collaborative therapist-client alliance.";
+    }
+    
+    if (q.includes('intake') || q.includes('alignment') || q.includes('boundary')) {
+      return "10-Minute Intake Alignment Checklist:\n1. Establish clear boundaries (this is not child speech therapy, but training).\n2. Frame articulation as a hardware glitch.\n3. Utilize autonomy-supportive language ('we can try', 'let's calibrate') instead of directives.";
+    }
+
+    if (q.includes('r') && (q.includes('coarticulation') || q.includes('pinch') || q.includes('formant'))) {
+      return "Rhotic /r/ Coarticulation Tips: To target F2/F3 formant pinching, instruct the student to bunch or retroflex the tongue tip. Visually adjust their vocal tract shape until their active peak dots on the biofeedback visualizer pinch into the F2/F3 horizontal template bands.";
+    }
+
+    if (q.includes('pwa') || q.includes('install') || q.includes('flag')) {
+      return "PWA Setup Troubleshooting:\n1. Navigate to chrome://flags/#optimization-guide-on-device-model and select Enabled BypassPrefRequirement.\n2. Navigate to chrome://flags/#prompt-api-for-gemini-nano and select Enabled.\n3. Relaunch Chrome. Tap Safari's 'Share' > 'Add to Home Screen' on iOS, or 'Install App' banner on Android Chrome.";
+    }
+
+    if (q.includes('iep') || q.includes('goal') || q.includes('smart')) {
+      return "Draft SMART Target:\n'The student will independently deploy rate control and coarticulation repair strategies to produce target sounds in conversational peer environments with 85% accuracy across 3 sessions, verified by SIT transcriptions.'";
+    }
+
+    if (q.includes('stress') || q.includes('noise') || q.includes('cafeteria') || q.includes('classroom')) {
+      return "Environmental Stress Testing: Use the background noise simulator in the Biofeedback tab. SLPs can dynamically scale ambient hum/noise levels to test speech durability under realistic classroom distractions.";
+    }
+
+    return "I am here to assist with clinical articulation metrics, phoneme visual visualizers, and PWA setup. Try asking:\n- 'How do I teach /r/ coarticulation?'\n- 'Explain the Hardware Glitch analogy'\n- 'How do I configure Chrome Gemini Nano flags?'";
+  };
+
+  const handleSend = async (textToSend: string) => {
+    if (!textToSend.trim()) return;
+    
+    const userMsg: ChatMessage = { sender: 'user', text: textToSend };
+    setMessages(prev => [...prev, userMsg]);
+    setInputVal('');
+    setIsTyping(true);
+
+    try {
+      const botResponse = await generateLocalResponse(textToSend);
+      setMessages(prev => [...prev, { sender: 'bot', text: botResponse }]);
+    } catch {
+      setMessages(prev => [...prev, { sender: 'bot', text: "Sorry, I encountered an error. Please try again." }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    handleSend(suggestion);
+  };
+
+  return (
+    <>
+      {/* Floating Action Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="fixed bottom-24 right-4 z-40 bg-gradient-to-r from-indigo-500 to-purple-650 hover:from-indigo-650 hover:to-purple-700 text-white rounded-full p-3.5 shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-300 min-h-[48px] min-w-[48px]"
+        title="Open Clinical AI Copilot"
+      >
+        <Sparkles size={20} className={isOpen ? "rotate-45 transition-transform" : ""} />
+        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-pink-500"></span>
+        </span>
+      </button>
+
+      {/* Floating Chat Panel */}
+      {isOpen && (
+        <div className="fixed bottom-24 left-4 right-4 z-50 bg-slate-900 border border-slate-750 max-w-sm w-full mx-auto rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[460px] animate-slideUp font-sans">
+          {/* Header */}
+          <div className="bg-slate-800 border-b border-slate-700 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Brain size={18} className="text-indigo-400" />
+              <div>
+                <h4 className="font-extrabold text-xs text-slate-100 uppercase tracking-wider">Clinical AI Copilot</h4>
+                <span className="text-[9px] text-slate-400 font-bold block text-left">
+                  {hasLocalAI ? "Active: Local Gemini Nano" : "Simulation Fallback Engine"}
+                </span>
+              </div>
+            </div>
+            <button 
+              onClick={() => setIsOpen(false)}
+              className="text-slate-400 hover:text-slate-200 p-1 min-h-[30px] min-w-[30px] flex items-center justify-center"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Messages Feed */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-950/60 max-h-[250px]">
+            {messages.map((m, idx) => (
+              <div 
+                key={idx} 
+                className={`flex flex-col max-w-[85%] ${
+                  m.sender === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
+                }`}
+              >
+                <div className={`p-3 rounded-2xl text-xs leading-relaxed font-normal text-left ${
+                  m.sender === 'user'
+                    ? 'bg-indigo-650 text-white rounded-tr-none'
+                    : 'bg-slate-800 text-slate-200 rounded-tl-none border border-slate-750'
+                } whitespace-pre-line`}>
+                  {m.text}
+                </div>
+              </div>
+            ))}
+            {isTyping && (
+              <div className="mr-auto flex items-center gap-1 bg-slate-800 border border-slate-750 px-3 py-2.5 rounded-2xl rounded-tl-none text-[10px] text-slate-450 font-bold tracking-wider animate-pulse">
+                Thinking...
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Suggestion Chips */}
+          <div className="bg-slate-900 border-t border-slate-800/80 px-3 py-2 flex gap-1.5 overflow-x-auto select-none no-scrollbar">
+            <button 
+              onClick={() => handleSuggestionClick("How do I teach /r/ coarticulation?")}
+              className="text-[9px] font-bold bg-slate-800 border border-slate-750 text-indigo-400 hover:bg-slate-750 px-2.5 py-1.5 rounded-xl whitespace-nowrap transition"
+            >
+              /r/ Coarticulation
+            </button>
+            <button 
+              onClick={() => handleSuggestionClick("Explain the hardware glitch analogy")}
+              className="text-[9px] font-bold bg-slate-800 border border-slate-750 text-indigo-400 hover:bg-slate-750 px-2.5 py-1.5 rounded-xl whitespace-nowrap transition"
+            >
+              Glitch Analogy
+            </button>
+            <button 
+              onClick={() => handleSuggestionClick("How do I configure Chrome flags?")}
+              className="text-[9px] font-bold bg-slate-800 border border-slate-750 text-indigo-400 hover:bg-slate-750 px-2.5 py-1.5 rounded-xl whitespace-nowrap transition"
+            >
+              PWA AI flags
+            </button>
+          </div>
+
+          {/* Input Panel */}
+          <div className="p-3 bg-slate-900 border-t border-slate-800 flex gap-2">
+            <input
+              type="text"
+              value={inputVal}
+              onChange={(e) => setInputVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSend(inputVal); }}
+              placeholder="Ask the local copilot..."
+              className="flex-1 bg-slate-950 border border-slate-750 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 min-h-[36px]"
+            />
+            <button
+              onClick={() => handleSend(inputVal)}
+              className="bg-indigo-650 hover:bg-indigo-700 text-white font-bold px-3 py-2 rounded-xl text-xs uppercase tracking-wider transition min-h-[36px]"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -460,6 +667,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Floating Clinical AI Chatbot Copilot */}
+      <ClinicalAICopilot />
     </div>
   );
 }
@@ -507,6 +717,10 @@ function VisualizerTab() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
 
+  // Environmental Stress Synthesizer States
+  const [isNoiseEnabled, setIsNoiseEnabled] = useState(() => localStorage.getItem('hfs_noise_enabled') === 'true');
+  const [noiseLevel, setNoiseLevel] = useState(() => parseInt(localStorage.getItem('hfs_noise_level') || '30'));
+
   // Refs for Web Audio API & MediaRecorder
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -517,10 +731,170 @@ function VisualizerTab() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Background Noise Synthesizer Refs
+  const synthAudioCtxRef = useRef<AudioContext | null>(null);
+  const noiseSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const noiseGainRef = useRef<GainNode | null>(null);
+  const osc1Ref = useRef<OscillatorNode | null>(null);
+  const osc2Ref = useRef<OscillatorNode | null>(null);
+  const lfoRef = useRef<OscillatorNode | null>(null);
+
   const loadRecordings = async () => {
     const recs = await db.recordings.toArray();
     setSavedRecordings(recs);
   };
+
+  // Stop background synthesizer noise
+  const stopSynthNoise = useCallback(() => {
+    try {
+      if (noiseSourceRef.current) {
+        noiseSourceRef.current.stop();
+        noiseSourceRef.current.disconnect();
+        noiseSourceRef.current = null;
+      }
+      if (osc1Ref.current) {
+        osc1Ref.current.stop();
+        osc1Ref.current.disconnect();
+        osc1Ref.current = null;
+      }
+      if (osc2Ref.current) {
+        osc2Ref.current.stop();
+        osc2Ref.current.disconnect();
+        osc2Ref.current = null;
+      }
+      if (lfoRef.current) {
+        lfoRef.current.stop();
+        lfoRef.current.disconnect();
+        lfoRef.current = null;
+      }
+      if (noiseGainRef.current) {
+        noiseGainRef.current.disconnect();
+        noiseGainRef.current = null;
+      }
+    } catch {
+      // Ignored if nodes are already stopped
+    }
+  }, []);
+
+  // Start background synthesizer noise
+  const startSynthNoise = useCallback((level: number) => {
+    try {
+      if (!synthAudioCtxRef.current || synthAudioCtxRef.current.state === 'closed') {
+        const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        synthAudioCtxRef.current = new AudioContextClass();
+      }
+      const ctx = synthAudioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(console.error);
+      }
+
+      stopSynthNoise();
+
+      // Synthesize noise buffer
+      const bufferSize = ctx.sampleRate * 2;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = buffer;
+      noiseSource.loop = true;
+      noiseSourceRef.current = noiseSource;
+
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'lowpass';
+      noiseFilter.frequency.setValueAtTime(450, ctx.currentTime);
+
+      const osc1 = ctx.createOscillator();
+      osc1.frequency.setValueAtTime(125, ctx.currentTime);
+      osc1Ref.current = osc1;
+
+      const osc2 = ctx.createOscillator();
+      osc2.frequency.setValueAtTime(210, ctx.currentTime);
+      osc2Ref.current = osc2;
+
+      const lfo = ctx.createOscillator();
+      lfo.frequency.setValueAtTime(0.25, ctx.currentTime);
+      lfoRef.current = lfo;
+
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.setValueAtTime(0.2, ctx.currentTime);
+
+      const chatterGain = ctx.createGain();
+      chatterGain.gain.setValueAtTime(0.08, ctx.currentTime);
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(chatterGain.gain);
+
+      const noiseGain = ctx.createGain();
+      const targetGain = (level / 100) * 0.25;
+      noiseGain.gain.setValueAtTime(targetGain, ctx.currentTime);
+      noiseGainRef.current = noiseGain;
+
+      noiseSource.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+
+      osc1.connect(chatterGain);
+      osc2.connect(chatterGain);
+      chatterGain.connect(noiseGain);
+
+      noiseGain.connect(ctx.destination);
+
+      noiseSource.start();
+      osc1.start();
+      osc2.start();
+      lfo.start();
+    } catch (err) {
+      console.error("Failed to start environmental noise:", err);
+    }
+  }, [stopSynthNoise]);
+
+  // Sync synthesizer states to localStorage and trigger toggle
+  useEffect(() => {
+    localStorage.setItem('hfs_noise_enabled', String(isNoiseEnabled));
+    localStorage.setItem('hfs_noise_level', String(noiseLevel));
+
+    if (isNoiseEnabled) {
+      startSynthNoise(noiseLevel);
+    } else {
+      stopSynthNoise();
+    }
+  }, [isNoiseEnabled, noiseLevel, startSynthNoise, stopSynthNoise]);
+
+  // Drawing the visual bands for F2 and F3
+  const drawFormantBands = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    if (selectedPhoneme !== '/r/') return;
+
+    const freqToY = (f: number) => height - ((f - 1000) / (3000 - 1000)) * height;
+    const yF2 = freqToY(1600);
+    const yF3 = freqToY(2200);
+
+    ctx.fillStyle = 'rgba(99, 102, 241, 0.08)';
+    ctx.fillRect(0, yF2 - 10, width, 20);
+    ctx.strokeStyle = 'rgba(99, 102, 241, 0.3)';
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(0, yF2);
+    ctx.lineTo(width, yF2);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(236, 72, 153, 0.08)';
+    ctx.fillRect(0, yF3 - 10, width, 20);
+    ctx.strokeStyle = 'rgba(236, 72, 153, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(0, yF3);
+    ctx.lineTo(width, yF3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillStyle = 'rgba(165, 180, 252, 0.6)';
+    ctx.fillText('F2 (Rhotic Target) ~1600Hz', 12, yF2 + 3);
+    ctx.fillStyle = 'rgba(252, 165, 203, 0.6)';
+    ctx.fillText('F3 (Rhotic Pinch) ~2200Hz', 12, yF3 + 3);
+  }, [selectedPhoneme]);
 
   // Drawing the static target wave overlay on canvas
   const drawTargetOverlay = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -578,6 +952,9 @@ function VisualizerTab() {
         ctx.stroke();
       }
 
+      // Draw formant targets if /r/
+      drawFormantBands(ctx, width, height);
+
       // 3 overlapping standby waves
       const colors = ['rgba(99, 102, 241, 0.6)', 'rgba(168, 85, 247, 0.4)', 'rgba(236, 72, 153, 0.2)'];
       for (let layer = 0; layer < 3; layer++) {
@@ -603,7 +980,7 @@ function VisualizerTab() {
       animationRef.current = window.requestAnimationFrame(draw);
     };
     draw();
-  }, [drawTargetOverlay]);
+  }, [drawTargetOverlay, drawFormantBands]);
 
   // Drawing the Active Audio Waves
   const drawActive = useCallback((analyser: AnalyserNode) => {
@@ -612,7 +989,8 @@ function VisualizerTab() {
     }
 
     const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    const timeDataArray = new Uint8Array(bufferLength);
+    const freqDataArray = new Uint8Array(bufferLength);
 
     const draw = () => {
       if (!canvasRef.current) return;
@@ -623,7 +1001,7 @@ function VisualizerTab() {
       const width = canvas.width;
       const height = canvas.height;
 
-      analyser.getByteTimeDomainData(dataArray);
+      analyser.getByteTimeDomainData(timeDataArray);
 
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(0, 0, width, height);
@@ -637,6 +1015,9 @@ function VisualizerTab() {
         ctx.lineTo(i, height);
         ctx.stroke();
       }
+
+      // Draw formant target zones
+      drawFormantBands(ctx, width, height);
       
       // Zero line
       ctx.strokeStyle = 'rgba(99, 102, 241, 0.2)';
@@ -661,7 +1042,7 @@ function VisualizerTab() {
       let x = 0;
 
       for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0;
+        const v = timeDataArray[i] / 128.0;
         const y = (v * height) / 2;
 
         if (i === 0) ctx.moveTo(x, y);
@@ -673,13 +1054,86 @@ function VisualizerTab() {
       ctx.lineTo(width, height / 2);
       ctx.stroke();
 
-      // Draw static target overlay outline on top
+      // Formant Peak & Coarticulation detection
+      if (selectedPhoneme === '/r/') {
+        analyser.getByteFrequencyData(freqDataArray);
+
+        const sampleRate = analyser.context.sampleRate;
+        const fftSize = analyser.fftSize;
+        const getBin = (f: number) => Math.round((f * fftSize) / sampleRate);
+
+        // Find F2 Peak
+        const binF2Min = getBin(1400);
+        const binF2Max = getBin(1800);
+        let maxValF2 = 0;
+        let maxBinF2 = binF2Min;
+        for (let i = binF2Min; i <= binF2Max; i++) {
+          if (freqDataArray[i] > maxValF2) {
+            maxValF2 = freqDataArray[i];
+            maxBinF2 = i;
+          }
+        }
+        const peakF2 = (maxBinF2 * sampleRate) / fftSize;
+
+        // Find F3 Peak
+        const binF3Min = getBin(2000);
+        const binF3Max = getBin(2400);
+        let maxValF3 = 0;
+        let maxBinF3 = binF3Min;
+        for (let i = binF3Min; i <= binF3Max; i++) {
+          if (freqDataArray[i] > maxValF3) {
+            maxValF3 = freqDataArray[i];
+            maxBinF3 = i;
+          }
+        }
+        const peakF3 = (maxBinF3 * sampleRate) / fftSize;
+
+        const freqToY = (f: number) => height - ((f - 1000) / (3000 - 1000)) * height;
+
+        // If vocal energy is detected, draw formant dots
+        if (maxValF2 > 45 && maxValF3 > 45) {
+          // Draw F2 dot
+          ctx.fillStyle = '#38bdf8'; // sky-400
+          ctx.beginPath();
+          ctx.arc(width * 0.38, freqToY(peakF2), 5, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // Draw F3 dot
+          ctx.fillStyle = '#f472b6'; // pink-400
+          ctx.beginPath();
+          ctx.arc(width * 0.62, freqToY(peakF3), 5, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // Check for coarticulation pinching
+          if (Math.abs(peakF3 - peakF2) < 450) {
+            // Success overlay borders
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.6)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0, 0, width, height);
+
+            // Draw line connecting formants
+            ctx.strokeStyle = '#10b981'; // emerald-500
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(width * 0.38, freqToY(peakF2));
+            ctx.lineTo(width * 0.62, freqToY(peakF3));
+            ctx.stroke();
+
+            // Success Label
+            ctx.fillStyle = '#34d399'; // emerald-400
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText('✨ /r/ COARTICULATION PINCH ACQUIRED! ✨', width / 2 - 110, 26);
+          }
+        }
+      }
+
+      // Draw static target template on top
       drawTargetOverlay(ctx, width, height);
 
       animationRef.current = window.requestAnimationFrame(draw);
     };
     draw();
-  }, [drawTargetOverlay]);
+  }, [drawTargetOverlay, drawFormantBands, selectedPhoneme]);
 
   useEffect(() => {
     let active = true;
@@ -704,8 +1158,13 @@ function VisualizerTab() {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop());
       }
+      // Cleanup background synthesizer
+      stopSynthNoise();
+      if (synthAudioCtxRef.current && synthAudioCtxRef.current.state !== 'closed') {
+        synthAudioCtxRef.current.close().catch(console.error);
+      }
     };
-  }, [drawStandby]); // Depend on memoized drawStandby callback
+  }, [drawStandby, stopSynthNoise]); // Depend on memoized drawStandby and stopSynthNoise callbacks
 
   // Timer effect when recording
   useEffect(() => {
@@ -735,7 +1194,7 @@ function VisualizerTab() {
       audioCtxRef.current = audioCtx;
       
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 512;
+      analyser.fftSize = 1024;
       analyserRef.current = analyser;
 
       const source = audioCtx.createMediaStreamSource(stream);
@@ -908,6 +1367,48 @@ function VisualizerTab() {
         </div>
       </div>
 
+      {/* Environmental Stress Simulator Panel */}
+      <div className="bg-slate-800 border border-slate-700/80 p-4.5 rounded-3xl shadow-lg space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="text-indigo-400 animate-pulse" size={16} />
+            <span className="text-xs font-bold text-slate-350 tracking-wider uppercase">Environmental Noise Simulator</span>
+          </div>
+          {/* Toggle Switch */}
+          <button
+            onClick={() => setIsNoiseEnabled(!isNoiseEnabled)}
+            className={`px-3 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest border transition active:scale-95 min-h-[30px] ${
+              isNoiseEnabled
+                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25'
+                : 'bg-slate-900 border-slate-700 text-slate-500 hover:text-slate-400'
+            }`}
+          >
+            {isNoiseEnabled ? 'Noise On' : 'Noise Off'}
+          </button>
+        </div>
+
+        <p className="text-[10px] text-slate-400 leading-relaxed font-normal text-left">
+          Injects synthesized ambient low-frequency room chatter and noise to test student intelligibility limits under stress.
+        </p>
+
+        {isNoiseEnabled && (
+          <div className="space-y-1.5 pt-1 animate-fadeIn">
+            <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+              <span>Auditory Noise Level:</span>
+              <span className="font-mono text-indigo-400">{noiseLevel}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={noiseLevel}
+              onChange={(e) => setNoiseLevel(parseInt(e.target.value))}
+              className="w-full accent-indigo-500 h-1 bg-slate-900 rounded-lg cursor-pointer"
+            />
+          </div>
+        )}
+      </div>
+
       {/* Primary Record Button Trigger */}
       <div className="flex justify-center">
         {!isRecording ? (
@@ -1036,10 +1537,48 @@ const REPAIR_PROTOCOLS = [
 function TrackerTab() {
   const [logs, setLogs] = useState<SessionLog[]>([]);
   const [rating, setRating] = useState<number>(3); // Default articulation rating
-  const [pcc, setPcc] = useState<number>(80); // Default PCC percentage
+  const [pcc, setPcc] = useState<number>(() => {
+    const sitTotal = parseInt(localStorage.getItem('hfs_sit_total') || '0');
+    const sitCorrect = parseInt(localStorage.getItem('hfs_sit_correct') || '0');
+    return sitTotal > 0 ? Math.round((sitCorrect / sitTotal) * 100) : 80;
+  });
   const [environment, setEnvironment] = useState<string>("Quiet Clinical Space");
-  const [repairStrategies, setRepairStrategies] = useState<string[]>([]);
-  const [notes, setNotes] = useState('');
+  const [repairStrategies, setRepairStrategies] = useState<string[]>(() => {
+    const strategies: string[] = [];
+    const prosodyRate = localStorage.getItem('hfs_prosody_rate') === 'true';
+    if (prosodyRate) {
+      strategies.push("Reduced Vocal Rate");
+    }
+    return strategies;
+  });
+  const [notes, setNotes] = useState(() => {
+    try {
+      const absentSounds = JSON.parse(localStorage.getItem('hfs_arizona_late8') || '[]');
+      const sitTotal = parseInt(localStorage.getItem('hfs_sit_total') || '0');
+      const sitCorrect = parseInt(localStorage.getItem('hfs_sit_correct') || '0');
+      const sitPct = sitTotal > 0 ? Math.round((sitCorrect / sitTotal) * 100) : 0;
+      
+      const sections = [];
+      if (absentSounds.length > 0) {
+        sections.push(`Absent phonetic targets: ${absentSounds.join(', ')}.`);
+      }
+      if (sitTotal > 0) {
+        sections.push(`SIT speech intelligibility calculated at ${sitPct}% (${sitCorrect}/${sitTotal} words).`);
+      }
+      const goals = localStorage.getItem('hfs_intake_goals') || '';
+      if (goals) {
+        sections.push(`Collaborative targets: "${goals}".`);
+      }
+      return sections.join(' ');
+    } catch {
+      return '';
+    }
+  });
+
+  const [envDifficulty, setEnvDifficulty] = useState<number>(() => {
+    const enabled = localStorage.getItem('hfs_noise_enabled') === 'true';
+    return enabled ? parseInt(localStorage.getItem('hfs_noise_level') || '30') : 0;
+  });
 
   useEffect(() => {
     db.logs.toArray().then(setLogs);
@@ -1055,7 +1594,8 @@ function TrackerTab() {
       pcc,
       environment,
       repairStrategies,
-      notes: notes.trim()
+      notes: notes.trim(),
+      environmentalDifficulty: envDifficulty
     });
 
     // Reset Form States
@@ -1064,6 +1604,7 @@ function TrackerTab() {
     setEnvironment("Quiet Clinical Space");
     setRepairStrategies([]);
     setNotes('');
+    setEnvDifficulty(0);
     
     // Refresh Log Feed
     db.logs.toArray().then(setLogs);
@@ -1170,6 +1711,26 @@ function TrackerTab() {
               );
             })}
           </div>
+        </div>
+
+        {/* Environmental Noise stress level slider */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <label className="block text-xs font-bold text-slate-400 tracking-widest uppercase">
+              Environmental Noise Stress:
+            </label>
+            <span className="text-sm font-extrabold text-pink-400 font-mono bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-lg">
+              {envDifficulty}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={envDifficulty}
+            onChange={(e) => setEnvDifficulty(parseInt(e.target.value))}
+            className="w-full h-2 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-pink-500 min-h-[30px]"
+          />
         </div>
 
         {/* Repair Protocols Checklist */}
@@ -1281,6 +1842,11 @@ function TrackerTab() {
                     <span className="text-[10px] font-extrabold bg-slate-900 border border-slate-800 text-indigo-400 px-2.5 py-1 rounded-xl truncate">
                       Env: {log.environment}
                     </span>
+                    {log.environmentalDifficulty !== undefined && log.environmentalDifficulty > 0 && (
+                      <span className="text-[10px] font-extrabold bg-slate-900 border border-slate-800 text-pink-400 px-2.5 py-1 rounded-xl">
+                        Noise: {log.environmentalDifficulty}%
+                      </span>
+                    )}
                   </div>
 
                   {/* Deployed strategies bullets */}
