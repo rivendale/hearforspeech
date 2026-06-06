@@ -33,6 +33,7 @@ import { encryptSessionLog } from '../utils/crypto';
 import { PrintableHandout } from '../components/PrintableHandout';
 
 type WorkflowMode = 'setup' | 'running' | 'compose';
+type SetupPhase = 'patient_choice' | 'new_patient' | 'load_patient' | 'patient_home' | 'goal' | 'session_setup' | 'review';
 type LanguageMode = 'clinician' | 'student' | 'caregiver';
 type NoteFormat = 'school' | 'soap';
 
@@ -225,6 +226,8 @@ export function SessionTab() {
   const [practiceLevel, setPracticeLevel] = useState<PracticeLevel>('word');
   const [setting, setSetting] = useState('Therapy room');
   const [mode, setMode] = useState<WorkflowMode>('setup');
+  const [setupPhase, setSetupPhase] = useState<SetupPhase>('patient_choice');
+  const [clientSearch, setClientSearch] = useState('');
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
   const [draftTrials, setDraftTrials] = useState<DraftTrial[]>([]);
   const [cueLevel, setCueLevel] = useState<CueLevel>('independent');
@@ -242,7 +245,7 @@ export function SessionTab() {
   const [listenerDraft, setListenerDraft] = useState<Omit<ListenerCheck, 'id' | 'clientId' | 'createdAt'> | null>(null);
   const [isListenerMode, setIsListenerMode] = useState(false);
 
-  const currentClientId = selectedClientId || clients[0]?.id || '';
+  const currentClientId = selectedClientId || '';
 
   const selectedClient = useMemo(
     () => clients.find(client => client.id === currentClientId),
@@ -278,6 +281,13 @@ export function SessionTab() {
   const trialStats = useMemo(() => calculateTrialStats(draftTrials), [draftTrials]);
   const progressSuggestion = useMemo(() => buildConservativeSuggestion(selectedClientSessions), [selectedClientSessions]);
   const practiceTargets = useMemo(() => generatePracticeTargets(target), [target]);
+  const filteredClients = useMemo(
+    () => clients.filter(client => {
+      const searchText = `${client.displayName} ${client.initials} ${client.ageGroup || ''}`.toLowerCase();
+      return searchText.includes(clientSearch.trim().toLowerCase());
+    }),
+    [clients, clientSearch]
+  );
 
   const loadLocalData = useCallback(async () => {
     const [storedClients, storedGoals, storedSessions, storedListenerChecks] = await Promise.all([
@@ -314,6 +324,40 @@ export function SessionTab() {
     };
   }, []);
 
+  const loadClient = (clientId: string) => {
+    setSelectedClientId(clientId);
+    setSelectedGoalId('');
+    setSetupPhase('patient_home');
+    setSaveStatus('');
+  };
+
+  const continueToSessionSetup = () => {
+    if (!currentClientId) {
+      setSetupPhase('patient_choice');
+      return;
+    }
+
+    if (selectedGoal) {
+      setSelectedGoalId(selectedGoal.id);
+      setTarget(selectedGoal.targetPhoneme || selectedGoal.targetArea);
+      setPracticeLevel(selectedGoal.level);
+      setGoalTargetArea(selectedGoal.targetArea);
+      setGoalTargetPhoneme(selectedGoal.targetPhoneme || '');
+      setGoalContext(selectedGoal.context || '');
+      setSetupPhase('session_setup');
+      return;
+    }
+
+    setSetupPhase('goal');
+  };
+
+  const startOverAtPatientChoice = () => {
+    setSelectedClientId('');
+    setSelectedGoalId('');
+    setClientSearch('');
+    setSetupPhase('patient_choice');
+  };
+
   const createClient = async (event?: FormEvent) => {
     event?.preventDefault();
     const trimmedName = clientName.trim();
@@ -338,6 +382,7 @@ export function SessionTab() {
     setClientName('');
     setClientAgeGroup('');
     setClientNotes('');
+    setSetupPhase('patient_home');
     await loadLocalData();
     return client.id;
   };
@@ -345,7 +390,7 @@ export function SessionTab() {
   const createDemoClient = async () => {
     const existingDemo = clients.find(client => client.displayName === 'Taylor Demo');
     if (existingDemo) {
-      setSelectedClientId(existingDemo.id);
+      loadClient(existingDemo.id);
       return;
     }
 
@@ -381,6 +426,7 @@ export function SessionTab() {
     });
     setSelectedClientId(clientId);
     setSelectedGoalId(goalId);
+    setSetupPhase('patient_home');
     setTarget('/r/');
     setPracticeLevel('word');
     await loadLocalData();
@@ -407,6 +453,7 @@ export function SessionTab() {
 
     await db.goals.add(goal);
     setSelectedGoalId(goal.id);
+    setSetupPhase('session_setup');
     setTarget(goal.targetPhoneme || goal.targetArea);
     await loadLocalData();
     return goal.id;
@@ -419,6 +466,7 @@ export function SessionTab() {
     setGoalTargetArea(goal.targetArea);
     setGoalTargetPhoneme(goal.targetPhoneme || '');
     setGoalContext(goal.context || '');
+    setSetupPhase('session_setup');
   };
 
   const handleStartSession = async () => {
@@ -678,6 +726,7 @@ export function SessionTab() {
 
   const resetForNextSession = () => {
     setMode('setup');
+    setSetupPhase('patient_home');
     setDraftTrials([]);
     setListenerDraft(null);
     setSchoolNote('');
@@ -835,13 +884,15 @@ export function SessionTab() {
       <section className="bg-gradient-to-br from-indigo-500/20 via-slate-800 to-emerald-500/10 border border-indigo-400/20 p-5 rounded-3xl shadow-xl text-left space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-indigo-200">Start Session</p>
-            <h2 className="text-2xl font-black tracking-tight text-white mt-1">Client → Goal → Trials → Note</h2>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-indigo-200">Start Here</p>
+            <h2 className="text-2xl font-black tracking-tight text-white mt-1">
+              {mode === 'setup' ? 'New Patient or Load Patient' : 'Client → Trials → Note'}
+            </h2>
           </div>
           <Sparkles className="text-emerald-300 shrink-0" size={24} />
         </div>
         <p className="text-sm text-slate-300 leading-relaxed">
-          A fast, local-first workflow for real therapy sessions: pick a student, choose a goal, tap trials, generate editable documentation, and send home practice.
+          Pick one big path, then the app shows only the next step: patient, goal, session, note, handout.
         </p>
       </section>
 
@@ -851,7 +902,7 @@ export function SessionTab() {
             <div className="flex items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
               <h3 className="font-extrabold text-base text-slate-100 flex items-center gap-2">
                 <UserPlus className="text-indigo-400" size={18} />
-                Client or Student
+                Patient
               </h3>
               <button
                 type="button"
@@ -862,62 +913,197 @@ export function SessionTab() {
               </button>
             </div>
 
-            {clients.length > 0 && (
-              <div className="space-y-2 text-left">
-                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="client-select">
-                  Select client/student
-                </label>
-                <select
-                  id="client-select"
-                  value={currentClientId}
-                  onChange={(event) => {
-                    setSelectedClientId(event.target.value);
-                    setSelectedGoalId('');
-                  }}
-                  className={`w-full min-h-[48px] bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm font-bold text-slate-100 ${FOCUS_CLASS}`}
+            {setupPhase === 'patient_choice' && (
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSetupPhase('new_patient')}
+                  className={`${PRIMARY_BUTTON} min-h-[92px] bg-blue-600 hover:bg-blue-700 text-white text-left px-5 flex items-center justify-between gap-3`}
                 >
-                  {clients.map(client => (
-                    <option key={client.id} value={client.id}>{client.displayName}</option>
-                  ))}
-                </select>
+                  <span>
+                    <span className="block text-lg">New Patient</span>
+                    <span className="block text-xs font-semibold opacity-90 mt-1">Create profile, save settings, then start.</span>
+                  </span>
+                  <Plus size={24} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSetupPhase('load_patient')}
+                  className={`${PRIMARY_BUTTON} min-h-[92px] bg-emerald-600 hover:bg-emerald-700 text-white text-left px-5 flex items-center justify-between gap-3`}
+                >
+                  <span>
+                    <span className="block text-lg">Load Patient</span>
+                    <span className="block text-xs font-semibold opacity-90 mt-1">Review old sessions or create a new one.</span>
+                  </span>
+                  <ClipboardList size={24} />
+                </button>
               </div>
             )}
 
-            <form onSubmit={createClient} className="grid gap-2 text-left">
-              <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="client-name">
-                Create new client/student
-              </label>
-              <input
-                id="client-name"
-                value={clientName}
-                onChange={(event) => setClientName(event.target.value)}
-                placeholder="Display name or initials"
-                className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 min-h-[48px] text-sm text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {setupPhase === 'new_patient' && (
+              <form onSubmit={createClient} className="grid gap-3 text-left">
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Add only what you need right now. These settings save locally on this device.
+                </p>
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="client-name">
+                  Patient name or initials
+                </label>
+                <input
+                  id="client-name"
+                  value={clientName}
+                  onChange={(event) => setClientName(event.target.value)}
+                  placeholder="Example: Taylor R. or TR"
+                  className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 min-h-[48px] text-sm text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
+                />
                 <input
                   value={clientAgeGroup}
                   onChange={(event) => setClientAgeGroup(event.target.value)}
-                  placeholder="Age group (optional)"
+                  placeholder="Age or grade (optional)"
                   className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 min-h-[48px] text-sm text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
                 />
                 <input
                   value={clientNotes}
                   onChange={(event) => setClientNotes(event.target.value)}
-                  placeholder="Private note (optional)"
+                  placeholder="Private SLP note or concern (optional)"
                   className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 min-h-[48px] text-sm text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
                 />
+                <input
+                  value={setting}
+                  onChange={(event) => setSetting(event.target.value)}
+                  placeholder="Default session place: therapy room, classroom..."
+                  className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 min-h-[48px] text-sm text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={startOverAtPatientChoice}
+                    className={`${PRIMARY_BUTTON} bg-slate-900 border border-slate-700 text-slate-300`}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    className={`${PRIMARY_BUTTON} bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2`}
+                  >
+                    <Plus size={17} />
+                    Save Patient
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {setupPhase === 'load_patient' && (
+              <div className="space-y-3 text-left">
+                <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="client-search">
+                  Find patient
+                </label>
+                <input
+                  id="client-search"
+                  value={clientSearch}
+                  onChange={(event) => setClientSearch(event.target.value)}
+                  placeholder="Search name, initials, age, grade..."
+                  className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 min-h-[48px] text-sm text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
+                />
+                <div className="space-y-2">
+                  {filteredClients.length === 0 ? (
+                    <p className="rounded-2xl border border-slate-700 bg-slate-900 p-4 text-sm text-slate-400">
+                      No saved patients found. Create a new patient to begin.
+                    </p>
+                  ) : filteredClients.map(client => {
+                    const sessionCount = sessions.filter(session => session.clientId === client.id).length;
+                    return (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => loadClient(client.id)}
+                        className={`w-full min-h-[72px] rounded-2xl border bg-slate-900 border-slate-700 p-4 text-left ${FOCUS_CLASS}`}
+                      >
+                        <span className="block text-base font-black text-slate-100">{client.displayName}</span>
+                        <span className="block text-xs text-slate-400 mt-1">
+                          {client.ageGroup || 'No age/grade saved'} · {sessionCount} saved session{sessionCount === 1 ? '' : 's'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={startOverAtPatientChoice}
+                  className={`${PRIMARY_BUTTON} w-full bg-slate-900 border border-slate-700 text-slate-300`}
+                >
+                  Back
+                </button>
               </div>
-              <button
-                type="submit"
-                className={`${PRIMARY_BUTTON} bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2`}
-              >
-                <Plus size={17} />
-                Add Client Locally
-              </button>
-            </form>
+            )}
+
+            {setupPhase === 'patient_home' && selectedClient && (
+              <div className="space-y-4 text-left">
+                <div className="rounded-3xl border border-blue-200 bg-blue-50 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Loaded patient</p>
+                  <h3 className="text-2xl font-black text-slate-950 mt-1">{selectedClient.displayName}</h3>
+                  <p className="text-sm text-slate-700 mt-1">{selectedClient.ageGroup || 'Age/grade not saved'}</p>
+                  {selectedClient.notes && <p className="text-xs text-slate-600 mt-2">{selectedClient.notes}</p>}
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={continueToSessionSetup}
+                    className={`${PRIMARY_BUTTON} min-h-[64px] bg-blue-600 hover:bg-blue-700 text-white`}
+                  >
+                    Create New Session
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSetupPhase('review')}
+                    className={`${PRIMARY_BUTTON} min-h-[64px] bg-emerald-600 hover:bg-emerald-700 text-white`}
+                  >
+                    Review Old Sessions
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startOverAtPatientChoice}
+                    className={`${PRIMARY_BUTTON} bg-slate-900 border border-slate-700 text-slate-300`}
+                  >
+                    Change Patient
+                  </button>
+                </div>
+                {selectedClientSessions[0] && (
+                  <div className="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Last saved session</p>
+                    <p className="text-sm font-extrabold text-slate-100 mt-1">{selectedClientSessions[0].date}</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {selectedClientSessions[0].target} · {selectedClientSessions[0].totalTrials} trials · {selectedClientSessions[0].independentAccuracy}% independent
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
+          {selectedClient && !['patient_choice', 'new_patient', 'load_patient'].includes(setupPhase) && (
+            <section className="grid grid-cols-3 gap-2">
+              {([
+                { id: 'patient_home', label: 'Patient' },
+                { id: 'goal', label: 'Goal' },
+                { id: 'session_setup', label: 'Session' }
+              ] as { id: SetupPhase; label: string }[]).map(step => (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => setSetupPhase(step.id)}
+                  className={`${PRIMARY_BUTTON} text-xs ${
+                    setupPhase === step.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-900 border border-slate-700 text-slate-300'
+                  }`}
+                >
+                  {step.label}
+                </button>
+              ))}
+            </section>
+          )}
+
+          {selectedClient && setupPhase === 'goal' && (
           <section className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
             <h3 className="font-extrabold text-base text-slate-100 flex items-center gap-2 border-b border-slate-700/60 pb-3">
               <Target className="text-emerald-400" size={18} />
@@ -980,12 +1166,37 @@ export function SessionTab() {
               </button>
             </div>
           </section>
+          )}
 
+          {selectedClient && setupPhase === 'session_setup' && (
           <section className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
             <h3 className="font-extrabold text-base text-slate-100 flex items-center gap-2 border-b border-slate-700/60 pb-3">
               <Activity className="text-pink-400" size={18} />
               Session Setup
             </h3>
+            {selectedGoal ? (
+              <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-left">
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Selected goal</p>
+                <p className="text-sm font-extrabold text-slate-100 mt-1">
+                  {selectedGoal.targetArea}{selectedGoal.targetPhoneme ? ` · ${selectedGoal.targetPhoneme}` : ''}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSetupPhase('goal')}
+                  className="mt-3 min-h-[40px] rounded-xl border border-emerald-400/40 px-3 text-xs font-bold text-emerald-200"
+                >
+                  Change Goal
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSetupPhase('goal')}
+                className={`${PRIMARY_BUTTON} w-full bg-amber-400 text-slate-950`}
+              >
+                Choose or Create Goal First
+              </button>
+            )}
             <div className="space-y-2 text-left">
               <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="target-input">Target sound or area</label>
               <input
@@ -1046,16 +1257,45 @@ export function SessionTab() {
               Start Session
             </button>
           </section>
+          )}
 
-          <ProgressPanel
-            client={selectedClient}
-            goals={selectedClientGoals}
-            sessions={selectedClientSessions}
-            listenerChecks={selectedListenerChecks}
-            suggestion={progressSuggestion}
-            recentTrend={recentTrend}
-            onDeleteClient={deleteSelectedClientData}
-          />
+          {selectedClient && setupPhase === 'review' && (
+            <div className="space-y-4">
+              <section className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-3 text-left">
+                <h3 className="font-extrabold text-base text-slate-100 flex items-center gap-2 border-b border-slate-700/60 pb-3">
+                  <BarChart3 className="text-blue-400" size={18} />
+                  Old Sessions
+                </h3>
+                {selectedClientSessions.length === 0 ? (
+                  <p className="text-sm text-slate-400">No saved sessions yet. Start a new session to build history.</p>
+                ) : selectedClientSessions.slice(0, 6).map(session => (
+                  <div key={session.id} className="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+                    <p className="text-sm font-extrabold text-slate-100">{session.date}</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {session.target} · {session.totalTrials} trials · {session.independentAccuracy}% independent · {session.supportedAccuracy}% supported
+                    </p>
+                    {session.homePractice && <p className="text-xs text-slate-500 mt-2 line-clamp-2">{session.homePractice}</p>}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={continueToSessionSetup}
+                  className={`${PRIMARY_BUTTON} w-full bg-blue-600 hover:bg-blue-700 text-white`}
+                >
+                  Create New Session
+                </button>
+              </section>
+              <ProgressPanel
+                client={selectedClient}
+                goals={selectedClientGoals}
+                sessions={selectedClientSessions}
+                listenerChecks={selectedListenerChecks}
+                suggestion={progressSuggestion}
+                recentTrend={recentTrend}
+                onDeleteClient={deleteSelectedClientData}
+              />
+            </div>
+          )}
         </div>
       )}
 

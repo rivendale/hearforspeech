@@ -16,25 +16,27 @@ Hear for Speech supports SLP judgment. It does not diagnose, prescribe treatment
 
 ### Start Session
 1. Open the app to the **Session** tab.
-2. Select an existing client/student or create a local profile.
-3. Select an active goal or create one for the client.
-4. Pick a target sound/area and practice level:
+2. Choose **New Patient** or **Load Patient**.
+3. For a new patient, enter the name/initials and any optional saved settings.
+4. For a loaded patient, review old sessions or tap **Create New Session**.
+5. Select an active goal or create one for the patient.
+6. Pick a target sound/area and practice level:
    - Sound
    - Syllable
    - Word
    - Phrase
    - Sentence
    - Conversation
-5. Run trials using large tablet-friendly buttons:
+7. Run trials using large tablet-friendly buttons:
    - Correct
    - Approx
    - Not yet
-6. Select cue level for upcoming trials:
+8. Select cue level for upcoming trials:
    - Independent
    - Minimal
    - Moderate
    - Maximal
-7. Add strategy chips as needed:
+9. Add strategy chips as needed:
    - Visual cue
    - Verbal cue
    - Model
@@ -43,8 +45,8 @@ Hear for Speech supports SLP judgment. It does not diagnose, prescribe treatment
    - Contrast
    - Biofeedback
    - Self-monitoring
-8. End the session, edit the generated documentation and home practice, then save locally.
-9. Review the **Patient handout preview**, then tap **Print / Save PDF** to print or save a practice sheet for the student/family.
+10. End the session, edit the generated documentation and home practice, then save locally.
+11. Review the **Patient handout preview**, then tap **Print / Save PDF** to print or save a practice sheet for the student/family.
 
 ### Session Data
 The guided workflow calculates:
