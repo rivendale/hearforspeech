@@ -1,10 +1,10 @@
 const CACHE_NAME = 'hearforspeech-v1';
 const PRECACHE_ASSETS = [
-  '/hearforspeech/',
-  '/hearforspeech/index.html',
-  '/hearforspeech/manifest.json',
-  '/hearforspeech/favicon.svg',
-  '/hearforspeech/icons.svg'
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/favicon.svg',
+  '/icons.svg'
 ];
 
 // On install, precache the shell assets

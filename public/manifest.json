@@ -2,8 +2,8 @@
   "name": "Hear for Speech - Local clinical biofeedback",
   "short_name": "Hear4Speech",
   "description": "Local-first clinical acoustic biofeedback and session tracking for speech therapy",
-  "start_url": "/hearforspeech/",
-  "scope": "/hearforspeech/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0F172A",
@@ -11,13 +11,13 @@
   "categories": ["medical", "education", "utilities"],
   "icons": [
     {
-      "src": "/hearforspeech/favicon.svg",
+      "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/hearforspeech/icons.svg",
+      "src": "/icons.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
