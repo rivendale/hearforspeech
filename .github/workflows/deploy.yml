@@ -35,16 +35,3 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
-```
-
-### 3. Vital Configuration for Vite
-Because you are deploying to a sub-path (`username.github.io/hearforspeech/`), Vite needs to know that. Update your `vite.config.ts`:
-
-```typescript
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-  base: '/hearforspeech/', // IMPORTANT: Replace with your actual repo name
-  plugins: [react()],
-})
