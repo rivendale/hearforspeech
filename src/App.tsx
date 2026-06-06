@@ -3,9 +3,10 @@ import { create } from 'zustand';
 import { 
   Mic, Square, BarChart3, Trash2, Download, Upload, Play, Pause, 
   Shield, Activity, Check, Edit3, X, AlertCircle, 
-  ClipboardList, Brain, Sparkles, ChevronDown, ChevronUp, Cpu 
+  ClipboardList, Brain, Sparkles, ChevronDown, ChevronUp, Cpu, Share2, QrCode
 } from 'lucide-react';
 import Dexie, { type Table } from 'dexie';
+import QRCode from 'qrcode';
 
 // --- Type Safety for Chrome Native Gemini Nano API ---
 interface AIAssistant {
@@ -66,6 +67,36 @@ class HearForSpeechDB extends Dexie {
 }
 
 const db = new HearForSpeechDB();
+
+interface BackupPayload {
+  appName: string;
+  exportedAt: string;
+  data: {
+    logs: SessionLog[];
+    recordings: {
+      id?: number;
+      date: string;
+      name: string;
+      audioBase64: string;
+    }[];
+  };
+}
+
+// Global base64 helpers
+const base64ToBlob = (base64DataUrl: string): Blob => {
+  const parts = base64DataUrl.split(',');
+  const header = parts[0];
+  const data = parts[1] || parts[0];
+  const mime = header.match(/:(.*?);/)?.[1] || 'audio/webm';
+  
+  const byteString = atob(data);
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], { type: mime });
+};
 
 // --- 2. Global State via Zustand ---
 interface AppState {
@@ -407,6 +438,26 @@ function ClinicalAICopilot() {
   );
 }
 
+// --- Helper Functions for Local Passkeys Binary Coding ---
+const bufferToBase64 = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
+
+const base64ToBuffer = (base64: string): ArrayBuffer => {
+  const binary = atob(base64);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return buffer;
+};
+
 // --- 5. Main Layout ---
 export default function App() {
   const { activeTab, setActiveTab, hasLocalAI, setHasLocalAI, setAiStatus } = useStore();
@@ -427,6 +478,289 @@ export default function App() {
     const userAgent = navigator.userAgent || navigator.vendor || (window as Window & { opera?: string }).opera || '';
     return /iPhone|iPad|iPod/i.test(userAgent);
   });
+
+  // Local device security locking states
+  const [isSecurityEnabled, setIsSecurityEnabled] = useState(() => localStorage.getItem('hfs_security_enabled') === 'true');
+  const [isLocked, setIsLocked] = useState(() => localStorage.getItem('hfs_security_enabled') === 'true');
+  const [pinInput, setPinInput] = useState('');
+  const [securityError, setSecurityError] = useState('');
+
+  // PIN setup modal states
+  const [pinSetupModal, setPinSetupModal] = useState<{
+    isOpen: boolean;
+    temporaryCredId: string | null;
+    isFallback: boolean;
+  }>({ isOpen: false, temporaryCredId: null, isFallback: false });
+  const [pinSetupStep, setPinSetupStep] = useState<'first' | 'confirm'>('first');
+  const [firstPin, setFirstPin] = useState('');
+  const [enteredSetupPin, setEnteredSetupPin] = useState('');
+  const [setupPinError, setSetupPinError] = useState('');
+
+  const handleSetupPinKey = useCallback((num: string) => {
+    setSetupPinError('');
+    setEnteredSetupPin((prev) => {
+      if (prev.length < 4) {
+        const newPin = prev + num;
+        if (newPin.length === 4) {
+          // Trigger setup step transitions asynchronously to let the UI render the final dot
+          setTimeout(() => {
+            if (pinSetupStep === 'first') {
+              setFirstPin(newPin);
+              setEnteredSetupPin('');
+              setPinSetupStep('confirm');
+            } else {
+              // Confirm step
+              if (newPin === firstPin) {
+                // Success! Save everything
+                if (pinSetupModal.temporaryCredId) {
+                  localStorage.setItem('hfs_passkey_id', pinSetupModal.temporaryCredId);
+                }
+                localStorage.setItem('hfs_security_pin', newPin);
+                localStorage.setItem('hfs_security_enabled', 'true');
+                setIsSecurityEnabled(true);
+                
+                // Reset modal state
+                setPinSetupModal({ isOpen: false, temporaryCredId: null, isFallback: false });
+                setPinSetupStep('first');
+                setEnteredSetupPin('');
+                alert(pinSetupModal.temporaryCredId 
+                  ? "Local biometric passkey and backup PIN enabled successfully!" 
+                  : "Local PIN security enabled successfully!"
+                );
+              } else {
+                // Mismatch
+                setSetupPinError("PINs do not match. Please start over.");
+                setPinSetupStep('first');
+                setEnteredSetupPin('');
+              }
+            }
+          }, 100);
+        }
+        return newPin;
+      }
+      return prev;
+    });
+  }, [pinSetupStep, pinSetupModal.temporaryCredId, firstPin]);
+
+  const cancelPinSetup = useCallback(() => {
+    setPinSetupModal({ isOpen: false, temporaryCredId: null, isFallback: false });
+    setPinSetupStep('first');
+    setFirstPin('');
+    setEnteredSetupPin('');
+    setSetupPinError('');
+  }, []);
+
+  // Unlock with biometric FaceID/TouchID passkey
+  const verifyLocalPasskey = useCallback(async () => {
+    try {
+      const savedCredIdBase64 = localStorage.getItem('hfs_passkey_id');
+      if (!savedCredIdBase64) {
+        setSecurityError("No biometric passkey registered.");
+        return;
+      }
+
+      const credIdBuffer = base64ToBuffer(savedCredIdBase64);
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          allowCredentials: [{
+            type: "public-key",
+            id: credIdBuffer
+          }],
+          userVerification: "required",
+          timeout: 60000
+        }
+      });
+      
+      if (assertion) {
+        setIsLocked(false);
+        setSecurityError('');
+        setPinInput('');
+      }
+    } catch (err) {
+      console.error("Local biometric scan failed:", err);
+      setSecurityError("Biometric authentication failed or cancelled.");
+    }
+  }, []);
+
+  // Unlock with backup PIN
+  const verifyPin = useCallback((pinCode: string) => {
+    const savedPin = localStorage.getItem('hfs_security_pin') || '';
+    if (pinCode === savedPin) {
+      setIsLocked(false);
+      setSecurityError('');
+      setPinInput('');
+    } else {
+      setPinInput('');
+      setSecurityError("Invalid backup PIN code.");
+    }
+  }, []);
+
+  // Enable security lock
+  const registerLocalPasskey = async () => {
+    try {
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const userId = crypto.getRandomValues(new Uint8Array(16));
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { id: window.location.hostname || "localhost", name: "Hear for Speech" },
+          user: {
+            id: userId,
+            name: "clinician@hearforspeech.com",
+            displayName: "Hear for Speech Clinician"
+          },
+          pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+          authenticatorSelection: {
+            userVerification: "required",
+            residentKey: "preferred"
+          },
+          timeout: 60000
+        }
+      });
+      if (credential) {
+        const cred = credential as PublicKeyCredential;
+        const base64Id = bufferToBase64(cred.rawId);
+        setPinSetupStep('first');
+        setFirstPin('');
+        setEnteredSetupPin('');
+        setSetupPinError('');
+        setPinSetupModal({
+          isOpen: true,
+          temporaryCredId: base64Id,
+          isFallback: false
+        });
+      }
+    } catch (err) {
+      console.error("Biometric registration failed:", err);
+      // fallback to PIN only
+      setPinSetupStep('first');
+      setFirstPin('');
+      setEnteredSetupPin('');
+      setSetupPinError('');
+      setPinSetupModal({
+        isOpen: true,
+        temporaryCredId: null,
+        isFallback: true
+      });
+    }
+  };
+
+  // Disable security lock
+  const disableSecurity = () => {
+    if (confirm("Are you sure you want to disable local screen security? Articulation logs will no longer be locked.")) {
+      localStorage.removeItem('hfs_security_enabled');
+      localStorage.removeItem('hfs_passkey_id');
+      localStorage.removeItem('hfs_security_pin');
+      setIsSecurityEnabled(false);
+      setIsLocked(false);
+      setSecurityError('');
+      alert("Local security disabled.");
+    }
+  };
+
+  // Hash handoff sync state
+  const [incomingHandoffData, setIncomingHandoffData] = useState<BackupPayload | null>(null);
+  const [handoffMode, setHandoffMode] = useState<'merge' | 'overwrite'>('merge');
+
+  // Process imported handoff data
+  const processHandoffImport = async () => {
+    if (!incomingHandoffData || !incomingHandoffData.data) return;
+    
+    const { logs } = incomingHandoffData.data;
+    
+    try {
+      if (handoffMode === 'overwrite') {
+        const proceed = confirm(
+          "DANGER: Overwrite option will wipe all local data first. Proceed?"
+        );
+        if (!proceed) return;
+
+        await db.transaction('rw', [db.logs, db.recordings], async () => {
+          await db.logs.clear();
+          await db.recordings.clear();
+
+          for (const log of logs) {
+            await db.logs.add({
+              date: log.date,
+              rating: log.rating,
+              pcc: log.pcc !== undefined ? log.pcc : 80,
+              environment: log.environment || 'Quiet Clinical Space',
+              repairStrategies: Array.isArray(log.repairStrategies) ? log.repairStrategies : [],
+              notes: log.notes,
+              environmentalDifficulty: log.environmentalDifficulty
+            });
+          }
+        });
+      } else {
+        // Merge logs
+        await db.transaction('rw', [db.logs, db.recordings], async () => {
+          const currentLogs = await db.logs.toArray();
+          for (const log of logs) {
+            const exists = currentLogs.some(l => l.date === log.date && l.notes === log.notes);
+            if (!exists) {
+              await db.logs.add({
+                date: log.date,
+                rating: log.rating,
+                pcc: log.pcc !== undefined ? log.pcc : 80,
+                environment: log.environment || 'Quiet Clinical Space',
+                repairStrategies: Array.isArray(log.repairStrategies) ? log.repairStrategies : [],
+                notes: log.notes,
+                environmentalDifficulty: log.environmentalDifficulty
+              });
+            }
+          }
+        });
+      }
+      alert(`Successfully ${handoffMode === 'merge' ? 'merged' : 'restored'} handoff data!`);
+      setIncomingHandoffData(null);
+      window.location.reload();
+    } catch (err) {
+      console.error("Handoff import failed:", err);
+      alert("Handoff import failed. See console.");
+    }
+  };
+
+  // Check URL hash for handoff data on load
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkHash = async () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#handoff=')) {
+        try {
+          const base64Data = hash.replace('#handoff=', '');
+          const decodedText = new TextDecoder().decode(
+            new Uint8Array(
+              atob(decodeURIComponent(base64Data))
+                .split('')
+                .map((c) => c.charCodeAt(0))
+            )
+          );
+          const parsed = JSON.parse(decodedText);
+          if (parsed.appName === "HearForSpeech" && parsed.data) {
+            setIncomingHandoffData(parsed);
+          }
+        } catch (err) {
+          console.error("Failed to decode handoff URL hash:", err);
+        }
+        // Clean hash from URL immediately so it doesn't re-trigger on reload
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    };
+    checkHash();
+  }, []);
+
+  // Trigger passkey scan immediately on load if locked
+  useEffect(() => {
+    if (isLocked && localStorage.getItem('hfs_passkey_id')) {
+      // Small timeout to let UI settle before triggering biometric prompt
+      const t = setTimeout(() => {
+        verifyLocalPasskey();
+      }, 600);
+      return () => clearTimeout(t);
+    }
+  }, [isLocked, verifyLocalPasskey]);
 
   // Global browser API capability detection & install event binding
   useEffect(() => {
@@ -487,6 +821,120 @@ export default function App() {
     setDeferredPrompt(null);
   };
 
+  if (isLocked) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-100 font-sans">
+        <div className="max-w-xs w-full text-center space-y-6">
+          {/* Logo / Lock Icon */}
+          <div className="flex justify-center">
+            <div className="bg-indigo-600/10 border border-indigo-500/25 p-4.5 rounded-full text-indigo-400 shadow-xl shadow-indigo-500/5">
+              <Shield size={36} className="animate-pulse" />
+            </div>
+          </div>
+
+          <div>
+            <h2 className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              Hear for Speech
+            </h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">Local Security Active</p>
+          </div>
+
+          {securityError && (
+            <div className="bg-red-500/10 border border-red-500/20 px-3.5 py-2.5 rounded-2xl text-[10px] font-bold text-red-400 text-center leading-normal">
+              {securityError}
+            </div>
+          )}
+
+          {/* PIN keypad entry */}
+          <div className="space-y-4">
+            <div className="flex justify-center gap-3">
+              {[0, 1, 2, 3].map((idx) => {
+                const filled = pinInput.length > idx;
+                return (
+                  <div 
+                    key={idx} 
+                    className={`h-4.5 w-4.5 rounded-full border transition-all duration-300 ${
+                      filled 
+                        ? 'bg-indigo-500 border-indigo-400 scale-110 shadow-md shadow-indigo-500/35' 
+                        : 'bg-slate-900 border-slate-705'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Standard key numbers */}
+            <div className="grid grid-cols-3 gap-3 max-w-[240px] mx-auto pt-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => {
+                    if (pinInput.length < 4) {
+                      const newPin = pinInput + num;
+                      setPinInput(newPin);
+                      if (newPin.length === 4) {
+                        verifyPin(newPin);
+                      }
+                    }
+                  }}
+                  className="h-14 w-14 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 text-white font-bold text-lg flex items-center justify-center transition active:scale-95 min-h-[48px]"
+                >
+                  {num}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setPinInput(pinInput.slice(0, -1))}
+                className="h-14 w-14 rounded-full bg-slate-950 text-slate-400 text-xs font-bold flex items-center justify-center transition active:scale-95 min-h-[48px]"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (pinInput.length < 4) {
+                    const newPin = pinInput + '0';
+                    setPinInput(newPin);
+                    if (newPin.length === 4) {
+                      verifyPin(newPin);
+                    }
+                  }
+                }}
+                className="h-14 w-14 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 text-white font-bold text-lg flex items-center justify-center transition active:scale-95 min-h-[48px]"
+              >
+                0
+              </button>
+              {localStorage.getItem('hfs_passkey_id') && (
+                <button
+                  type="button"
+                  onClick={verifyLocalPasskey}
+                  className="h-14 w-14 rounded-full bg-indigo-650 hover:bg-indigo-600 text-white flex items-center justify-center transition active:scale-95 min-h-[48px]"
+                  title="Unlock with Passkey"
+                >
+                  <Cpu size={20} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {localStorage.getItem('hfs_passkey_id') && (
+            <button
+              onClick={verifyLocalPasskey}
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-650 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-3.5 rounded-2xl text-xs uppercase tracking-wider transition active:scale-98 min-h-[44px]"
+            >
+              Scan Device Passkey
+            </button>
+          )}
+
+          <p className="text-[10px] text-slate-500 font-semibold uppercase leading-normal">
+            Secure client session sandbox active.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased font-sans select-none">
       {/* Header */}
@@ -522,7 +970,13 @@ export default function App() {
         {activeTab === 'visualizer' && <VisualizerTab />}
         {activeTab === 'tracker' && <TrackerTab />}
         {activeTab === 'protocol' && <ProtocolTab />}
-        {activeTab === 'export' && <ExportTab />}
+        {activeTab === 'export' && (
+          <ExportTab 
+            isSecurityEnabled={isSecurityEnabled}
+            registerLocalPasskey={registerLocalPasskey}
+            disableSecurity={disableSecurity}
+          />
+        )}
       </main>
 
       {/* Bottom Navigation */}
@@ -670,6 +1124,165 @@ export default function App() {
 
       {/* Floating Clinical AI Chatbot Copilot */}
       <ClinicalAICopilot />
+
+      {/* URL Handoff Import Modal */}
+      {incomingHandoffData && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+          <div className="bg-slate-800 border border-slate-700 max-w-sm w-full p-6 rounded-3xl shadow-2xl space-y-4 text-left">
+            <div className="flex items-center gap-2 border-b border-slate-700 pb-2">
+              <Activity className="text-indigo-400" size={20} />
+              <h3 className="font-extrabold text-base text-slate-100 tracking-tight">
+                Incoming Device Handoff
+              </h3>
+            </div>
+            
+            <p className="text-xs text-slate-350 leading-relaxed font-normal">
+              Detected a live session logs transfer from another device. 
+              We found <strong className="text-indigo-400 font-bold">{incomingHandoffData.data?.logs?.length || 0} session logs</strong> to import.
+            </p>
+
+            <div className="bg-slate-900/60 p-3.5 border border-slate-750 rounded-2xl text-[10px] space-y-1 text-slate-400">
+              <div className="flex justify-between">
+                <span>Source Export Date:</span>
+                <span className="font-bold text-slate-200">
+                  {incomingHandoffData.exportedAt ? new Date(incomingHandoffData.exportedAt).toLocaleString() : 'Unknown'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Recordings:</span>
+                <span className="font-bold text-slate-200">
+                  {incomingHandoffData.data?.recordings?.length || 0} (Excluded from QR Handoff)
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="block text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">Select Import Mode:</span>
+              <div className="flex gap-2 bg-slate-950 p-1 rounded-2xl border border-slate-900">
+                <button
+                  type="button"
+                  onClick={() => setHandoffMode('merge')}
+                  className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase transition active:scale-98 min-h-[36px] ${
+                    handoffMode === 'merge'
+                      ? 'bg-indigo-650 text-white shadow'
+                      : 'text-slate-500 hover:text-slate-350'
+                  }`}
+                >
+                  Merge (Union)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHandoffMode('overwrite')}
+                  className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase transition active:scale-98 min-h-[36px] ${
+                    handoffMode === 'overwrite'
+                      ? 'bg-rose-500/20 text-rose-455 border border-rose-500/30'
+                      : 'text-slate-500 hover:text-slate-350'
+                  }`}
+                >
+                  Overwrite (Replace)
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIncomingHandoffData(null)}
+                className="flex-1 bg-slate-700 hover:bg-slate-650 text-slate-200 font-bold py-3.5 rounded-2xl text-[10px] uppercase tracking-wider transition active:scale-98 min-h-[44px]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={processHandoffImport}
+                className="flex-1 bg-indigo-650 hover:bg-indigo-600 text-white font-bold py-3.5 rounded-2xl text-[10px] uppercase tracking-wider transition active:scale-98 min-h-[44px]"
+              >
+                Confirm Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PIN Setup / Keypad Modal */}
+      {pinSetupModal.isOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+          <div className="bg-slate-800 border border-slate-700 max-w-xs w-full p-6 rounded-3xl shadow-2xl space-y-5 text-center">
+            <div>
+              <h3 className="font-extrabold text-base text-slate-100 tracking-tight">
+                {pinSetupModal.isFallback ? "Create Security PIN" : "Create Backup PIN"}
+              </h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                {pinSetupStep === 'first' ? "Step 1: Enter 4-digit PIN" : "Step 2: Re-enter PIN to confirm"}
+              </p>
+            </div>
+
+            {setupPinError && (
+              <div className="bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-xl text-[9px] font-bold text-red-400">
+                {setupPinError}
+              </div>
+            )}
+
+            <div className="flex justify-center gap-3">
+              {[0, 1, 2, 3].map((idx) => {
+                const filled = enteredSetupPin.length > idx;
+                return (
+                  <div
+                    key={idx}
+                    className={`h-4.5 w-4.5 rounded-full border transition-all duration-300 ${
+                      filled
+                        ? 'bg-indigo-500 border-indigo-400 scale-110 shadow-md shadow-indigo-500/35'
+                        : 'bg-slate-900 border-slate-700'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Keypad */}
+            <div className="grid grid-cols-3 gap-3 max-w-[200px] mx-auto pt-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => handleSetupPinKey(num.toString())}
+                  className="h-12 w-12 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 text-white font-bold text-base flex items-center justify-center transition active:scale-95 min-h-[44px]"
+                >
+                  {num}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setEnteredSetupPin((prev) => prev.slice(0, -1))}
+                className="h-12 w-12 rounded-full bg-slate-950 text-slate-400 text-[10px] font-bold flex items-center justify-center transition active:scale-95 min-h-[44px]"
+              >
+                Del
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetupPinKey('0')}
+                className="h-12 w-12 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 text-white font-bold text-base flex items-center justify-center transition active:scale-95 min-h-[44px]"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                onClick={cancelPinSetup}
+                className="h-12 w-12 rounded-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-[10px] font-bold flex items-center justify-center transition active:scale-95 min-h-[44px]"
+              >
+                Cancel
+              </button>
+            </div>
+            
+            <p className="text-[9.5px] text-slate-500 leading-normal font-medium max-w-[200px] mx-auto">
+              {pinSetupModal.isFallback 
+                ? "This PIN will lock local observation logs on this device's browser sandbox."
+                : "This backup PIN allows unlocking logs if biometric scans fail."
+              }
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2278,9 +2891,37 @@ This functional speech impairment significantly restricts the student's communic
 }
 
 // --- TAB 4: ExportTab (Patient-Mediated Exchange) ---
-function ExportTab() {
+interface ExportTabProps {
+  isSecurityEnabled: boolean;
+  registerLocalPasskey: () => Promise<void>;
+  disableSecurity: () => void;
+}
+
+function ExportTab({ isSecurityEnabled, registerLocalPasskey, disableSecurity }: ExportTabProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [stats, setStats] = useState({ logsCount: 0, recordingsCount: 0 });
+  const [clipboardInput, setClipboardInput] = useState('');
+  const [importMode, setImportMode] = useState<'merge' | 'overwrite'>('merge');
+  const [isCopied, setIsCopied] = useState(false);
+
+  // New states for mobile enhancements & QR handoff
+  const [exportFormat, setExportFormat] = useState<'full' | 'logs-only'>('full');
+  const [canShare] = useState(() => {
+    if (typeof navigator !== 'undefined' && navigator.canShare) {
+      try {
+        const dummyFile = new File([''], 'd.json', { type: 'application/json' });
+        return navigator.canShare({ files: [dummyFile] });
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrError, setQrError] = useState('');
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dragCounter = useRef(0);
 
   const loadStats = async () => {
     const logsCount = await db.logs.count();
@@ -2297,40 +2938,28 @@ function ExportTab() {
     });
   };
 
-  const base64ToBlob = (base64DataUrl: string): Blob => {
-    const parts = base64DataUrl.split(',');
-    const header = parts[0];
-    const data = parts[1];
-    const mime = header.match(/:(.*?);/)?.[1] || 'audio/webm';
-    
-    const byteString = atob(data);
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-    }
-    return new Blob([ab], { type: mime });
-  };
-
   useEffect(() => {
     let active = true;
-    Promise.all([db.logs.count(), db.recordings.count()]).then(([logsCount, recordingsCount]) => {
+    const fetchStats = async () => {
+      const logsCount = await db.logs.count();
+      const recordingsCount = await db.recordings.count();
       if (active) {
         setStats({ logsCount, recordingsCount });
       }
-    }).catch(console.error);
+    };
+    fetchStats().catch(console.error);
     return () => {
       active = false;
     };
   }, []);
 
-  const handleExport = async () => {
-    try {
-      const logs = await db.logs.toArray();
-      const recordings = await db.recordings.toArray();
+  const getSerializedPayload = async (format: 'full' | 'logs-only' = 'full') => {
+    const logs = await db.logs.toArray();
+    let serializedRecordings: BackupPayload['data']['recordings'] = [];
 
-      // Convert each audio blob into base64 to include in JSON
-      const serializedRecordings = await Promise.all(
+    if (format === 'full') {
+      const recordings = await db.recordings.toArray();
+      serializedRecordings = await Promise.all(
         recordings.map(async (rec) => {
           const base64 = await blobToBase64(rec.audio);
           return {
@@ -2341,22 +2970,28 @@ function ExportTab() {
           };
         })
       );
+    }
 
-      const payload = {
-        appName: "HearForSpeech",
-        exportedAt: new Date().toISOString(),
-        data: {
-          logs,
-          recordings: serializedRecordings
-        }
-      };
+    return {
+      appName: "HearForSpeech",
+      exportedAt: new Date().toISOString(),
+      data: {
+        logs,
+        recordings: serializedRecordings
+      }
+    };
+  };
 
+  const handleExportFile = async () => {
+    try {
+      const payload = await getSerializedPayload(exportFormat);
       const jsonBlob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(jsonBlob);
       
       const a = document.createElement('a');
       a.href = url;
-      a.download = `hearforspeech_backup_${new Date().toISOString().split('T')[0]}.json`;
+      const suffix = exportFormat === 'logs-only' ? 'logs_only' : 'backup';
+      a.download = `hearforspeech_${suffix}_${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -2365,49 +3000,171 @@ function ExportTab() {
     }
   };
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const proceed = confirm(
-      "WARNING: Importing this file will overwrite all current local data. Are you sure you wish to continue?"
-    );
-    if (!proceed) return;
-
+  const handleShareFile = async () => {
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const content = event.target?.result as string;
-          const parsed = JSON.parse(content);
+      const payload = await getSerializedPayload(exportFormat);
+      const suffix = exportFormat === 'logs-only' ? 'logs_only' : 'backup';
+      const filename = `hearforspeech_${suffix}_${new Date().toISOString().split('T')[0]}.json`;
+      const file = new File(
+        [JSON.stringify(payload, null, 2)],
+        filename,
+        { type: 'application/json' }
+      );
 
-          if (parsed.appName !== "HearForSpeech" || !parsed.data) {
-            throw new Error("Incorrect application backup format.");
-          }
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'HearForSpeech Data Exchange',
+          text: `Speech evaluation logs ${exportFormat === 'logs-only' ? '(text only)' : '(full with voice prints)'}`
+        });
+      } else {
+        alert("Native file sharing is not supported by your browser/device.");
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('Web Share failed:', err);
+        alert('Failed to share backup file.');
+      }
+    }
+  };
 
-          const { logs, recordings } = parsed.data;
+  const handleCopyClipboard = async () => {
+    try {
+      const payload = await getSerializedPayload(exportFormat);
+      const jsonStr = JSON.stringify(payload);
+      await navigator.clipboard.writeText(jsonStr);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error('Copy to clipboard failed:', err);
+      alert('Failed to copy to clipboard.');
+    }
+  };
 
-          if (!Array.isArray(logs) || !Array.isArray(recordings)) {
-            throw new Error("Corrupted logs or recordings structure.");
-          }
+  const handleGenerateQr = async () => {
+    try {
+      setQrError('');
+      // Package logs only (exclude large binary audio blobs for QR code scan limits)
+      const logs = await db.logs.toArray();
+      const payload = {
+        appName: "HearForSpeech",
+        exportedAt: new Date().toISOString(),
+        data: {
+          logs,
+          recordings: []
+        }
+      };
+      
+      const jsonStr = JSON.stringify(payload);
+      const utf8Bytes = new TextEncoder().encode(jsonStr);
+      let binary = '';
+      for (let i = 0; i < utf8Bytes.length; i++) {
+        binary += String.fromCharCode(utf8Bytes[i]);
+      }
+      const base64Data = btoa(binary);
+      
+      const handoffLink = window.location.origin + window.location.pathname + '#handoff=' + encodeURIComponent(base64Data);
+      
+      if (handoffLink.length > 2800) {
+        setQrError("Data payload is too large for scanning a QR code (~" + Math.round(handoffLink.length / 1024) + " KB). Please select 'Save Backup File' for direct transfers instead!");
+        setShowQrModal(true);
+        return;
+      }
 
-          // Clear & Overwrite database schema v3
-          await db.transaction('rw', [db.logs, db.recordings], async () => {
-            await db.logs.clear();
-            await db.recordings.clear();
-
-            for (const log of logs) {
-              await db.logs.add({
-                date: log.date,
-                rating: log.rating,
-                pcc: log.pcc !== undefined ? log.pcc : 80, // legacy fallback to default 80%
-                environment: log.environment || 'Quiet Clinical Space', // legacy fallback
-                repairStrategies: Array.isArray(log.repairStrategies) ? log.repairStrategies : [],
-                notes: log.notes
-              });
+      setShowQrModal(true);
+      
+      setTimeout(() => {
+        if (qrCanvasRef.current) {
+          QRCode.toCanvas(qrCanvasRef.current, handoffLink, {
+            width: 260,
+            margin: 2,
+            color: {
+              dark: '#0f172a', // Slate 900
+              light: '#ffffff' // White
             }
+          }, (error) => {
+            if (error) {
+              console.error("QR Code rendering failed:", error);
+              setQrError("Failed to render QR Code.");
+            }
+          });
+        }
+      }, 100);
+    } catch (err) {
+      console.error("Failed to generate handoff link", err);
+      setQrError("Failed to generate handoff link.");
+      setShowQrModal(true);
+    }
+  };
 
-            for (const rec of recordings) {
+  const processImportData = async (parsed: BackupPayload) => {
+    if (parsed.appName !== "HearForSpeech" || !parsed.data) {
+      throw new Error("Incorrect application backup format.");
+    }
+
+    const { logs, recordings } = parsed.data;
+    if (!Array.isArray(logs)) {
+      throw new Error("Corrupted logs structure.");
+    }
+
+    if (importMode === 'overwrite') {
+      const proceed = confirm(
+        "DANGER: Overwrite option will wipe all local data first. Proceed?"
+      );
+      if (!proceed) return;
+
+      await db.transaction('rw', [db.logs, db.recordings], async () => {
+        await db.logs.clear();
+        await db.recordings.clear();
+
+        for (const log of logs) {
+          await db.logs.add({
+            date: log.date,
+            rating: log.rating,
+            pcc: log.pcc !== undefined ? log.pcc : 80,
+            environment: log.environment || 'Quiet Clinical Space',
+            repairStrategies: Array.isArray(log.repairStrategies) ? log.repairStrategies : [],
+            notes: log.notes,
+            environmentalDifficulty: log.environmentalDifficulty
+          });
+        }
+
+        if (Array.isArray(recordings)) {
+          for (const rec of recordings) {
+            const audioBlob = base64ToBlob(rec.audioBase64);
+            await db.recordings.add({
+              date: rec.date,
+              audio: audioBlob,
+              name: rec.name
+            });
+          }
+        }
+      });
+    } else {
+      // Merge logs & recordings (avoid duplicates by checking date/name)
+      await db.transaction('rw', [db.logs, db.recordings], async () => {
+        const currentLogs = await db.logs.toArray();
+        const currentRecordings = await db.recordings.toArray();
+
+        for (const log of logs) {
+          const exists = currentLogs.some(l => l.date === log.date && l.notes === log.notes);
+          if (!exists) {
+            await db.logs.add({
+              date: log.date,
+              rating: log.rating,
+              pcc: log.pcc !== undefined ? log.pcc : 80,
+              environment: log.environment || 'Quiet Clinical Space',
+              repairStrategies: Array.isArray(log.repairStrategies) ? log.repairStrategies : [],
+              notes: log.notes,
+              environmentalDifficulty: log.environmentalDifficulty
+            });
+          }
+        }
+
+        if (Array.isArray(recordings)) {
+          for (const rec of recordings) {
+            const exists = currentRecordings.some(r => r.date === rec.date && r.name === rec.name);
+            if (!exists) {
               const audioBlob = base64ToBlob(rec.audioBase64);
               await db.recordings.add({
                 date: rec.date,
@@ -2415,14 +3172,29 @@ function ExportTab() {
                 name: rec.name
               });
             }
-          });
+          }
+        }
+      });
+    }
 
-          alert("Data successfully restored!");
-          loadStats();
-          // Reload page to re-render all tabs with imported data
-          window.location.reload();
+    alert(`Successfully ${importMode === 'merge' ? 'merged' : 'restored'} backup data!`);
+    loadStats();
+    setClipboardInput('');
+    window.location.reload();
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const content = event.target?.result as string;
+          const parsed = JSON.parse(content);
+          await processImportData(parsed);
         } catch (err: unknown) {
-          console.error(err);
           const error = err as Error;
           alert(`Failed to parse file: ${error.message || error}`);
         }
@@ -2431,6 +3203,36 @@ function ExportTab() {
     } catch (err) {
       console.error('File reading failed', err);
       alert('Failed to read selected file.');
+    }
+  };
+
+  const handleImportClipboard = async () => {
+    if (!clipboardInput.trim()) {
+      alert("Please paste the backup JSON text first.");
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(clipboardInput.trim());
+      await processImportData(parsed);
+    } catch (err: unknown) {
+      const error = err as Error;
+      alert(`Invalid backup JSON text: ${error.message || error}`);
+    }
+  };
+
+  const handleInstantClipboardImport = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        alert("Clipboard is empty.");
+        return;
+      }
+      const parsed = JSON.parse(text.trim());
+      await processImportData(parsed);
+    } catch (err: unknown) {
+      const error = err as Error;
+      alert(`Clipboard content is not a valid HearForSpeech backup JSON: ${error.message || error}`);
     }
   };
 
@@ -2446,21 +3248,136 @@ function ExportTab() {
     loadStats();
   };
 
+  // Drag & drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    dragCounter.current = 0;
+    
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.json')) {
+      alert("Only JSON database files are supported.");
+      return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const content = event.target?.result as string;
+          const parsed = JSON.parse(content);
+          await processImportData(parsed);
+        } catch (err: unknown) {
+          const error = err as Error;
+          alert(`Failed to parse file: ${error.message || error}`);
+        }
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      console.error('File reading failed', err);
+      alert('Failed to read dropped file.');
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Clinician Data Exchange Explanation */}
-      <div className="bg-slate-800 border border-slate-700/80 p-6 rounded-3xl shadow-xl space-y-4">
-        <h3 className="font-extrabold text-base text-slate-100 tracking-tight flex items-center gap-2">
-          <Shield size={18} className="text-emerald-400" />
-          <span>Patient-Mediated Exchange</span>
+    <div 
+      className="space-y-6 relative min-h-[300px]"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag & Drop Visual overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 border-2 border-dashed border-indigo-500 rounded-3xl m-0.5 backdrop-blur-sm pointer-events-none">
+          <div className="flex flex-col items-center justify-center p-8 text-center space-y-4">
+            <div className="bg-indigo-600/20 border border-indigo-500/30 p-5 rounded-full text-indigo-400">
+              <Upload size={32} className="animate-bounce" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base text-slate-100">Drop Backup File Here</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-[220px] leading-relaxed">
+                Release your `.json` file to parse and merge/restore your data instantly.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1. Local Security Config Panel */}
+      <div className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
+        <h3 className="font-extrabold text-base text-slate-100 tracking-tight flex items-center gap-2 border-b border-slate-700/50 pb-2">
+          <Shield size={18} className="text-indigo-400" />
+          <span>Local Device Security Lock</span>
         </h3>
         
-        <p className="text-xs text-slate-400 leading-relaxed font-normal">
-          Consistent with our strict privacy protocol, no database values or voice prints leave this device. 
-          Patients can use this panel to secure, export, or transition their entire clinical progress log.
+        <p className="text-[11px] text-slate-400 leading-relaxed font-normal text-left">
+          Lock access to clinical logs using your device's native FaceID/TouchID passkey or a fallback PIN. 
+          Perfect for protecting patient data when sharing device hardware with clients.
+          <span className="block mt-1.5 text-[10px] text-indigo-350 italic">
+            * Note: Passkeys are local to this specific device and browser. Register a separate passkey on each device to enable lock screens across all phones or computers.
+          </span>
         </p>
 
-        {/* Local DB Metrics */}
+        <div className="flex items-center justify-between p-3.5 bg-slate-900/60 border border-slate-750 rounded-2xl">
+          <div>
+            <span className="text-xs font-bold text-slate-200 block">Biometric Lock Status</span>
+            <span className={`text-[10px] font-bold block mt-0.5 ${isSecurityEnabled ? 'text-emerald-400' : 'text-slate-500 uppercase'}`}>
+              {isSecurityEnabled ? '🔒 Active (Passkey / PIN Enabled)' : '🔓 Off / Unprotected'}
+            </span>
+          </div>
+          {isSecurityEnabled ? (
+            <button
+              onClick={disableSecurity}
+              className="bg-slate-700 hover:bg-slate-650 text-slate-200 font-bold px-4 py-2 rounded-xl text-[10px] uppercase tracking-wider transition active:scale-95 min-h-[36px]"
+            >
+              Disable Lock
+            </button>
+          ) : (
+            <button
+              onClick={registerLocalPasskey}
+              className="bg-indigo-650 hover:bg-indigo-600 text-white font-bold px-4 py-2 rounded-xl text-[10px] uppercase tracking-wider transition active:scale-95 min-h-[36px]"
+            >
+              Enable Passkey Lock
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 2. Patient-Mediated Exchange Stats */}
+      <div className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
+        <h3 className="font-extrabold text-base text-slate-100 tracking-tight flex items-center gap-2 border-b border-slate-700/50 pb-2">
+          <Activity size={18} className="text-emerald-400" />
+          <span>Database Exchange Diagnostics</span>
+        </h3>
+
+        <p className="text-[11px] text-slate-400 leading-relaxed font-normal text-left">
+          Consistent with our strict privacy protocol, no database values or voice prints leave this device. 
+          Use this panel to export, merge, or transition your clinical logs.
+        </p>
+
         <div className="grid grid-cols-2 gap-3 bg-slate-900/50 p-4 rounded-2xl border border-slate-800/80">
           <div className="text-center">
             <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase block">Logs</span>
@@ -2473,45 +3390,216 @@ function ExportTab() {
         </div>
       </div>
 
-      {/* Control Buttons Panel */}
-      <div className="space-y-3">
-        {/* Export JSON Button */}
-        <button
-          onClick={handleExport}
-          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-600/10 transition-all active:scale-99 min-h-[48px] uppercase tracking-wider text-xs"
-        >
-          <Download size={18} />
-          <span>Export Backup JSON</span>
-        </button>
-
-        {/* Import JSON Button */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleImport}
-          accept=".json"
-          className="hidden"
-        />
+      {/* 3. Export Dashboard */}
+      <div className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
+        <h4 className="text-xs font-bold text-slate-400 tracking-widest uppercase block border-b border-slate-700/50 pb-2">Export Data Dashboard</h4>
         
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-705 text-slate-300 font-bold py-4 rounded-2xl border border-slate-700 transition-all active:scale-99 min-h-[48px] uppercase tracking-wider text-xs"
-        >
-          <Upload size={18} />
-          <span>Import Backup JSON</span>
-        </button>
+        {/* Export format selection */}
+        <div className="space-y-1.5">
+          <span className="block text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">Export Format Options:</span>
+          <div className="flex gap-2 bg-slate-950 p-1 rounded-2xl border border-slate-900">
+            <button
+              type="button"
+              onClick={() => setExportFormat('full')}
+              className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase transition active:scale-98 min-h-[36px] ${
+                exportFormat === 'full'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-500 hover:text-slate-350'
+              }`}
+            >
+              Full Backup (With Audio)
+            </button>
+            <button
+              type="button"
+              onClick={() => setExportFormat('logs-only')}
+              className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase transition active:scale-98 min-h-[36px] ${
+                exportFormat === 'logs-only'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-500 hover:text-slate-350'
+              }`}
+            >
+              Logs Only (Text/No Audio)
+            </button>
+          </div>
+        </div>
 
-        {/* Danger Zone Wipe */}
-        <div className="pt-4 border-t border-slate-850">
+        <div className="grid grid-cols-2 gap-2 pt-1">
           <button
-            onClick={handleClearDatabase}
-            className="w-full flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/20 hover:border-rose-500/40 text-rose-400 font-semibold py-3.5 rounded-2xl text-xs transition min-h-[44px]"
+            onClick={handleExportFile}
+            className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-750 text-slate-200 border border-slate-700 font-bold py-3 px-3 rounded-2xl transition active:scale-98 min-h-[44px] uppercase tracking-wider text-[10px]"
           >
-            <AlertCircle size={15} />
-            <span>Reset Local Database</span>
+            <Download size={14} />
+            <span>Save Backup File</span>
+          </button>
+          
+          <button
+            onClick={handleCopyClipboard}
+            className={`flex items-center justify-center gap-2 border font-bold py-3 px-3 rounded-2xl transition active:scale-98 min-h-[44px] uppercase tracking-wider text-[10px] ${
+              isCopied
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                : 'bg-slate-900 hover:bg-slate-750 border-slate-700 text-slate-200'
+            }`}
+          >
+            <Check size={14} className={isCopied ? '' : 'hidden'} />
+            <Upload size={14} className={isCopied ? 'hidden' : ''} />
+            <span>{isCopied ? 'Copied!' : 'Copy to Clipboard'}</span>
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-2 pt-1 border-t border-slate-750/80 mt-2">
+          {canShare && (
+            <button
+              onClick={handleShareFile}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-650 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-2xl transition active:scale-98 min-h-[44px] uppercase tracking-wider text-[10px]"
+            >
+              <Share2 size={14} />
+              <span>Native Mobile Share</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleGenerateQr}
+            className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-750 text-indigo-400 border border-slate-700 font-bold py-3 rounded-2xl transition active:scale-98 min-h-[44px] text-[10px] uppercase tracking-wider"
+          >
+            <QrCode size={14} />
+            <span>QR Code Handoff (Logs Only)</span>
           </button>
         </div>
       </div>
+
+      {/* 4. Import Dashboard */}
+      <div className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
+        <h4 className="text-xs font-bold text-slate-400 tracking-widest uppercase block border-b border-slate-700/50 pb-2">Import / Restore Backup</h4>
+
+        {/* Merge Mode Toggle */}
+        <div className="space-y-1.5">
+          <span className="block text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">Handoff Conflict Option:</span>
+          <div className="flex gap-2 bg-slate-950 p-1 rounded-2xl border border-slate-900">
+            <button
+              type="button"
+              onClick={() => setImportMode('merge')}
+              className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase transition active:scale-98 min-h-[36px] ${
+                importMode === 'merge'
+                  ? 'bg-indigo-650 text-white shadow'
+                  : 'text-slate-500 hover:text-slate-350'
+              }`}
+            >
+              Merge Logs (Union)
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportMode('overwrite')}
+              className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase transition active:scale-98 min-h-[36px] ${
+                importMode === 'overwrite'
+                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                  : 'text-slate-500 hover:text-slate-350'
+              }`}
+            >
+              Overwrite DB (Replace)
+            </button>
+          </div>
+        </div>
+
+        {/* Clipboard Sync Area */}
+        <div className="space-y-1.5">
+          <span className="block text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">Paste Clipboard Text:</span>
+          <textarea
+            value={clipboardInput}
+            onChange={(e) => setClipboardInput(e.target.value)}
+            placeholder="Paste exported backup string here to restore instantly..."
+            rows={3}
+            className="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 focus:outline-none p-3 rounded-2xl text-[11px] text-slate-200 placeholder-slate-600 transition-all font-mono select-text font-normal text-left"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={handleImportClipboard}
+              className="flex items-center justify-center gap-2 bg-indigo-600/30 hover:bg-indigo-600/40 text-indigo-400 font-bold py-3.5 rounded-2xl border border-indigo-550/20 transition active:scale-98 min-h-[44px] uppercase tracking-wider text-[10px]"
+            >
+              <Upload size={14} />
+              <span>Verify Paste</span>
+            </button>
+            <button
+              onClick={handleInstantClipboardImport}
+              className="flex items-center justify-center gap-2 bg-indigo-650 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-2xl transition active:scale-98 min-h-[44px] uppercase tracking-wider text-[10px]"
+            >
+              <Check size={14} />
+              <span>Read Clipboard</span>
+            </button>
+          </div>
+        </div>
+
+        {/* File Drag-and-drop Import */}
+        <div className="border-t border-slate-750/80 pt-3 space-y-2">
+          <span className="block text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">Or Drag & Drop or Select File:</span>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImportFile}
+            accept=".json"
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-750 text-slate-300 font-bold py-3 rounded-2xl border border-dashed border-slate-700 transition active:scale-98 min-h-[44px] text-[10px] uppercase tracking-wider"
+          >
+            <Download size={14} className="rotate-180" />
+            <span>Select JSON File</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Danger Zone Wipe */}
+      <div className="pt-2">
+        <button
+          onClick={handleClearDatabase}
+          className="w-full flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/20 hover:border-rose-500/40 text-rose-400 font-semibold py-3.5 rounded-2xl text-xs transition min-h-[44px] uppercase tracking-wider"
+        >
+          <AlertCircle size={15} />
+          <span>Reset Local Database</span>
+        </button>
+      </div>
+
+      {/* Handoff QR Code Viewer Modal */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+          <div className="bg-slate-800 border border-slate-700 max-w-xs w-full p-6 rounded-3xl shadow-2xl space-y-5 text-center">
+            <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+              <span className="font-extrabold text-sm text-slate-100 tracking-tight flex items-center gap-1.5">
+                <QrCode size={16} className="text-indigo-400" />
+                <span>QR Code Handoff</span>
+              </span>
+              <button 
+                onClick={() => setShowQrModal(false)}
+                className="text-slate-400 hover:text-slate-200 p-1 min-h-[30px]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {qrError ? (
+              <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-[10px] font-bold text-red-400 leading-normal">
+                {qrError}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-[10px] text-slate-400 leading-normal font-normal max-w-[220px] mx-auto">
+                  Scan this code using the native camera app on your phone/tablet to immediately import and sync session logs.
+                </p>
+                <div className="bg-white p-3 rounded-2xl inline-block shadow-xl">
+                  <canvas ref={qrCanvasRef} className="mx-auto" />
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="w-full bg-slate-700 hover:bg-slate-650 text-slate-200 font-bold py-3 rounded-2xl text-[10px] uppercase tracking-wider transition active:scale-99 min-h-[40px]"
+            >
+              Close Handoff
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
