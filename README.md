@@ -17,17 +17,22 @@ This app is built on a **Zero-Cloud Architecture**—all records, configurations
 * **Web Audio Noise Synthesizer**: Synthesizes low-frequency rumble and classroom chatter locally.
 * **Volume Slider (0-100%)**: Evaluates speech intelligibility and articulation durability under realistic distractions.
 
-### 3. Quantitative Session Tracker
+### 3. Quantitative Session Tracker & Visual Progress
+* **Longitudinal SVG Progress Chart**: Responsive client-side SVG line graph plotting Clinician PCC (indigo solid line) vs. Naïve Intelligibility (emerald dashed line) over the last 6 logs.
 * **Articulation Clarity Index**: 1-5 rating log.
 * **PCC (Percentage of Consonants Correct) Calculator**: Linked to the Sentence Intelligibility Test (SIT) scoring sheet.
 * **Automatic notes pre-filling**: Synced with active target phonemes and noise settings for fast charting.
 
-### 4. Client-Side Biometric Lock (Passkeys & PIN)
+### 4. Passwordless Naïve Listener Assessment Panel
+* **Interactive Matrix**: Pass the device to an unfamiliar adult or parent to read standardized SIT-like sentences. Tap individual words to mark them Clear/Unclear.
+* **Auto-Computed Intelligibility**: Real-time percentage tracking that commits directly to the local IndexedDB using the version 5 database schema.
+
+### 5. Client-Side Biometric Lock (Passkeys & PIN)
 * **WebAuthn Biometrics**: Lock and unlock session logs locally using FaceID, TouchID, Android Fingerprint, or Windows Hello.
 * **Custom Keypad Modal**: In-app 4-digit backup PIN configuration to replace standard browser prompts.
 * **Device-Local Execution**: Passkeys are bound to the specific physical device and browser. Users can register a passkey locally on their phone, tablet, and computer independently.
 
-### 5. Seamless Patient-Mediated Data Handoff
+### 6. Seamless Patient-Mediated Data Handoff
 * **Lightweight QR Code Handoff**: Synchronize session history from computer to phone (or vice-versa) instantly. Encodes session logs as a compressed, URL-safe Base64 hash appended to the app URL (`#handoff=...`). Simply scan the screen QR code with the phone camera to open and merge logs!
 * **Native Web Share API**: Share backup `.json` files directly to other apps (AirDrop, Bluetooth, Email, Messages) on iOS and Android.
 * **Clipboard Sync**: Quick export/import using a one-click clipboard reader.
@@ -94,7 +99,9 @@ Exported backups are formatted as JSON payloads. This schema is verified upon im
         "environment": "Quiet Space",
         "repairStrategies": ["Self-Correction", "Slower Rate"],
         "notes": "Focused on retroflex /r/ coarticulation under environmental noise.",
-        "environmentalDifficulty": 25
+        "environmentalDifficulty": 25,
+        "environmentalNoiseLevel": 25,
+        "naiveListenerScore": 90
       }
     ],
     "recordings": [

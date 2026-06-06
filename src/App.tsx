@@ -38,6 +38,8 @@ interface SessionLog {
   repairStrategies: string[]; // Strategies utilized
   notes: string;
   environmentalDifficulty?: number; // 0-100 noise scale
+  environmentalNoiseLevel?: number; // 0-100 noise scale (v5)
+  naiveListenerScore?: number; // percentage (0-100)
 }
 
 interface Recording {
@@ -61,6 +63,11 @@ class HearForSpeechDB extends Dexie {
     // Upgrade database schema to version 4 to support environmental difficulty stress tracking
     this.version(4).stores({
       logs: '++id, date, rating, pcc, environment, environmentalDifficulty',
+      recordings: '++id, date, name'
+    });
+    // Upgrade database schema to version 5 to support naive listener assessment score and environmental noise levels
+    this.version(5).stores({
+      logs: '++id, date, rating, pcc, environment, environmentalDifficulty, environmentalNoiseLevel, naiveListenerScore',
       recordings: '++id, date, name'
     });
   }
@@ -689,7 +696,9 @@ export default function App() {
               environment: log.environment || 'Quiet Clinical Space',
               repairStrategies: Array.isArray(log.repairStrategies) ? log.repairStrategies : [],
               notes: log.notes,
-              environmentalDifficulty: log.environmentalDifficulty
+              environmentalDifficulty: log.environmentalDifficulty,
+              environmentalNoiseLevel: log.environmentalNoiseLevel !== undefined ? log.environmentalNoiseLevel : log.environmentalDifficulty,
+              naiveListenerScore: log.naiveListenerScore
             });
           }
         });
@@ -707,7 +716,9 @@ export default function App() {
                 environment: log.environment || 'Quiet Clinical Space',
                 repairStrategies: Array.isArray(log.repairStrategies) ? log.repairStrategies : [],
                 notes: log.notes,
-                environmentalDifficulty: log.environmentalDifficulty
+                environmentalDifficulty: log.environmentalDifficulty,
+                environmentalNoiseLevel: log.environmentalNoiseLevel !== undefined ? log.environmentalNoiseLevel : log.environmentalDifficulty,
+                naiveListenerScore: log.naiveListenerScore
               });
             }
           }
@@ -2147,6 +2158,19 @@ const REPAIR_PROTOCOLS = [
   "Contextual Rephrasing"
 ];
 
+const ASSESSMENT_SENTENCES = [
+  "The bright yellow sunshine warmed the quiet playground.",
+  "Our family took a long walk along the rocky river.",
+  "Please remember to bring your folder to school tomorrow.",
+  "The brown dog chased the fast rabbit across the lawn.",
+  "We should try to write our answers in neat handwriting.",
+  "The children built a sandcastle near the ocean waves.",
+  "A heavy rain started to fall late last night.",
+  "They walked quickly through the crowded market in the morning.",
+  "The solar panel generates clean electricity from the sun.",
+  "The library provides quiet workspaces and resource guides."
+];
+
 function TrackerTab() {
   const [logs, setLogs] = useState<SessionLog[]>([]);
   const [rating, setRating] = useState<number>(3); // Default articulation rating
@@ -2193,6 +2217,24 @@ function TrackerTab() {
     return enabled ? parseInt(localStorage.getItem('hfs_noise_level') || '30') : 0;
   });
 
+  // Naïve Listener states
+  const [isAssessmentMode, setIsAssessmentMode] = useState(false);
+  const [currentSentenceIdx, setCurrentSentenceIdx] = useState(0);
+  const [unclearIndices, setUnclearIndices] = useState<number[]>([]);
+
+  const sentence = ASSESSMENT_SENTENCES[currentSentenceIdx];
+  const words = React.useMemo(() => sentence.split(' '), [sentence]);
+
+  const toggleWordClarity = (index: number) => {
+    setUnclearIndices((prev) =>
+      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
+    );
+  };
+
+  const clearCount = words.length - unclearIndices.length;
+  const totalWords = words.length;
+  const scorePercent = totalWords > 0 ? Math.round((clearCount / totalWords) * 100) : 100;
+
   useEffect(() => {
     db.logs.toArray().then(setLogs);
   }, []);
@@ -2208,7 +2250,8 @@ function TrackerTab() {
       environment,
       repairStrategies,
       notes: notes.trim(),
-      environmentalDifficulty: envDifficulty
+      environmentalDifficulty: envDifficulty,
+      environmentalNoiseLevel: envDifficulty
     });
 
     // Reset Form States
@@ -2243,8 +2286,147 @@ function TrackerTab() {
 
   return (
     <div className="space-y-6">
-      {/* Log Form */}
-      <form onSubmit={handleSave} className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-5">
+      {isAssessmentMode ? (
+        <div className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-5 animate-fadeIn">
+          <div className="flex justify-between items-center border-b border-slate-700/50 pb-3">
+            <h3 className="font-extrabold text-base text-slate-100 tracking-tight flex items-center gap-2">
+              <Activity size={18} className="text-pink-400" />
+              <span>Naïve Listener Assessment</span>
+            </h3>
+            <button
+              type="button"
+              onClick={() => setIsAssessmentMode(false)}
+              className="text-[10px] font-bold text-slate-400 bg-slate-700 hover:bg-slate-650 px-3 py-1.5 rounded-xl uppercase tracking-wider min-h-[30px]"
+            >
+              Exit Mode
+            </button>
+          </div>
+
+          <div className="bg-indigo-600/10 border border-indigo-500/15 p-4 rounded-2xl text-[11px] text-indigo-300 leading-relaxed font-normal text-left">
+            <strong>Instructions for Listener:</strong> Pass this device to a colleague, another parent, or any unfamiliar adult. 
+            Listen to the student read the sentence below aloud. Tap any word you could not understand to mark it red. 
+            By default, all words are understood.
+          </div>
+
+          {/* The Prompt Sentence to Read */}
+          <div className="bg-slate-900 border border-slate-750 p-5 rounded-2xl text-center space-y-2">
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Student Read Aloud:</span>
+            <p className="text-base font-extrabold text-slate-100 tracking-wide leading-relaxed font-serif">
+              "{sentence}"
+            </p>
+          </div>
+
+          {/* Word interactive grid */}
+          <div className="space-y-2 text-left">
+            <span className="block text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">
+              Interactive Word Intelligibility Matrix:
+            </span>
+            <div className="flex flex-wrap gap-2 pt-1 justify-center">
+              {words.map((word, idx) => {
+                const isClear = !unclearIndices.includes(idx);
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => toggleWordClarity(idx)}
+                    className={`py-2 px-3.5 rounded-xl font-bold text-xs border transition active:scale-95 min-h-[40px] flex flex-col items-center justify-center ${
+                      isClear
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+                        : 'bg-rose-500/20 border-rose-500/35 text-rose-450 hover:bg-rose-500/30'
+                    }`}
+                  >
+                    <span className="tracking-wide">{word}</span>
+                    <span className="text-[8px] uppercase tracking-wider mt-0.5 opacity-60">
+                      {isClear ? 'Clear' : 'Unclear'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Score & Controls */}
+          <div className="flex items-center justify-between p-3.5 bg-slate-900/40 border border-slate-750 rounded-2xl text-left">
+            <div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase block">Intelligibility Score</span>
+              <span className="text-lg font-extrabold text-emerald-400 font-mono">
+                {scorePercent}%
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                ({clearCount} of {totalWords} words clear)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentSentenceIdx((prev) => (prev + 1) % ASSESSMENT_SENTENCES.length);
+                setUnclearIndices([]);
+              }}
+              className="bg-slate-900 hover:bg-slate-750 border border-slate-700 text-slate-350 font-bold px-3 py-2 rounded-xl text-[10px] uppercase tracking-wider transition min-h-[36px]"
+            >
+              Change Sentence
+            </button>
+          </div>
+
+          {/* Submit */}
+          <button
+            type="button"
+            onClick={async () => {
+              const dateStr = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+              
+              const calcRating = 
+                scorePercent >= 90 ? 5 :
+                scorePercent >= 80 ? 4 :
+                scorePercent >= 70 ? 3 :
+                scorePercent >= 50 ? 2 :
+                1;
+
+              await db.logs.add({
+                date: dateStr,
+                rating: calcRating,
+                pcc: scorePercent,
+                environment: "Naïve Listener Assessment",
+                repairStrategies: repairStrategies,
+                notes: `[Naïve Listener Assessment] Sentence: "${sentence}". Understood ${clearCount}/${totalWords} words.`,
+                environmentalDifficulty: envDifficulty,
+                environmentalNoiseLevel: envDifficulty,
+                naiveListenerScore: scorePercent
+              });
+
+              alert(`Assessment committed successfully! Score: ${scorePercent}%`);
+              setIsAssessmentMode(false);
+              db.logs.toArray().then(setLogs);
+            }}
+            className="w-full bg-indigo-650 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-indigo-600/10 transition min-h-[48px] uppercase tracking-wider text-xs"
+          >
+            Submit & Save Assessment
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Assessment Mode Toggle Header Card */}
+          <div className="bg-slate-800 border border-slate-700/80 p-4.5 rounded-3xl shadow-xl flex items-center justify-between">
+            <div className="text-left">
+              <span className="text-xs font-extrabold text-slate-200 block">Assessment Mode Switch</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5 font-normal">
+                Toggle for passwordless Naïve Listener assessment.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAssessmentMode(true);
+                setCurrentSentenceIdx(0);
+                setUnclearIndices([]);
+              }}
+              className="bg-indigo-650 hover:bg-indigo-600 text-white font-bold px-4 py-2 rounded-xl text-[10px] uppercase tracking-wider transition active:scale-95 min-h-[36px]"
+            >
+              Start Naïve Assessment
+            </button>
+          </div>
+
+          {/* Log Form */}
+          <form onSubmit={handleSave} className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-5">
         <h3 className="font-extrabold text-base text-slate-100 tracking-tight border-b border-slate-700/50 pb-3 flex items-center gap-2">
           <Activity size={18} className="text-indigo-400" />
           <span>Performance Analytics Input</span>
@@ -2408,6 +2590,181 @@ function TrackerTab() {
           Zero-Cloud Protocol Active: Data is stored local-first on this device.
         </p>
       </form>
+        </>
+      )}
+
+      {/* SVG Progress Chart */}
+      {logs.length > 0 && (
+        <div className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
+          <h4 className="text-xs font-bold text-slate-400 tracking-widest uppercase block border-b border-slate-700/50 pb-2 text-left">
+            Longitudinal Intelligibility Progress
+          </h4>
+          
+          <div className="relative w-full h-[200px]">
+            <svg viewBox="0 0 400 200" className="w-full h-full">
+              {/* Grid Lines */}
+              {[25, 50, 75, 100].map((level) => {
+                const y = 170 - (level / 100) * 145;
+                return (
+                  <g key={level}>
+                    <line 
+                      x1="45" 
+                      y1={y} 
+                      x2="385" 
+                      y2={y} 
+                      stroke="#334155" 
+                      strokeDasharray="4 4" 
+                      strokeWidth="1" 
+                    />
+                    <text 
+                      x="10" 
+                      y={y + 3} 
+                      fill="#64748b" 
+                      className="text-[9px] font-bold font-mono"
+                    >
+                      {level}%
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* X Axis Date labels */}
+              {(() => {
+                const points = logs.slice(-6);
+                return points.map((log, idx) => {
+                  const x = 45 + (points.length > 1 ? (idx * 340) / (points.length - 1) : 170);
+                  const dateParts = log.date.split(',')[0].split('/');
+                  const displayDate = dateParts[0] && dateParts[1] ? `${dateParts[0]}/${dateParts[1]}` : dateParts[0];
+                  return (
+                    <text
+                      key={log.id}
+                      x={x}
+                      y="188"
+                      fill="#64748b"
+                      textAnchor="middle"
+                      className="text-[8px] font-bold font-mono"
+                    >
+                      {displayDate}
+                    </text>
+                  );
+                });
+              })()}
+
+              {/* Draw PCC Path */}
+              {(() => {
+                const points = logs.slice(-6);
+                if (points.length === 0) return null;
+                const pathD = points.map((log, idx) => {
+                  const x = 45 + (points.length > 1 ? (idx * 340) / (points.length - 1) : 170);
+                  const y = 170 - (log.pcc / 100) * 145;
+                  return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
+                }).join(' ');
+
+                return (
+                  <>
+                    <path
+                      d={pathD}
+                      fill="none"
+                      stroke="#6366f1"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {points.map((log, idx) => {
+                      const x = 45 + (points.length > 1 ? (idx * 340) / (points.length - 1) : 170);
+                      const y = 170 - (log.pcc / 100) * 145;
+                      return (
+                        <g key={log.id}>
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="5"
+                            fill="#0f172a"
+                            stroke="#6366f1"
+                            strokeWidth="2"
+                          />
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="2"
+                            fill="#6366f1"
+                          />
+                        </g>
+                      );
+                    })}
+                  </>
+                );
+              })()}
+
+              {/* Draw Naïve Listener Path (only for logs with naiveListenerScore) */}
+              {(() => {
+                const points = logs.slice(-6);
+                const naivePoints = points
+                  .map((log, idx) => ({
+                    id: log.id,
+                    x: 45 + (points.length > 1 ? (idx * 340) / (points.length - 1) : 170),
+                    score: log.naiveListenerScore
+                  }))
+                  .filter(p => p.score !== undefined);
+
+                if (naivePoints.length === 0) return null;
+
+                const pathD = naivePoints.map((p, idx) => {
+                  const y = 170 - (p.score! / 100) * 145;
+                  return `${idx === 0 ? 'M' : 'L'} ${p.x} ${y}`;
+                }).join(' ');
+
+                return (
+                  <>
+                    <path
+                      d={pathD}
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="2"
+                      strokeDasharray="3 3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {naivePoints.map((p) => {
+                      const y = 170 - (p.score! / 100) * 145;
+                      return (
+                        <g key={p.id}>
+                          <circle
+                            cx={p.x}
+                            cy={y}
+                            r="4"
+                            fill="#0f172a"
+                            stroke="#10b981"
+                            strokeWidth="2"
+                          />
+                          <circle
+                            cx={p.x}
+                            cy={y}
+                            r="1.5"
+                            fill="#10b981"
+                          />
+                        </g>
+                      );
+                    })}
+                  </>
+                );
+              })()}
+            </svg>
+          </div>
+
+          {/* Legend */}
+          <div className="flex justify-center gap-5 text-[9px] font-bold uppercase tracking-wider pt-1 border-t border-slate-700/50">
+            <div className="flex items-center gap-1.5 text-indigo-400">
+              <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />
+              <span>Clinician PCC</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block border border-slate-800" />
+              <span>Naïve Intelligibility</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Log Feed */}
       <div className="space-y-3">
@@ -3125,7 +3482,9 @@ function ExportTab({ isSecurityEnabled, registerLocalPasskey, disableSecurity }:
             environment: log.environment || 'Quiet Clinical Space',
             repairStrategies: Array.isArray(log.repairStrategies) ? log.repairStrategies : [],
             notes: log.notes,
-            environmentalDifficulty: log.environmentalDifficulty
+            environmentalDifficulty: log.environmentalDifficulty,
+            environmentalNoiseLevel: log.environmentalNoiseLevel !== undefined ? log.environmentalNoiseLevel : log.environmentalDifficulty,
+            naiveListenerScore: log.naiveListenerScore
           });
         }
 
@@ -3156,7 +3515,9 @@ function ExportTab({ isSecurityEnabled, registerLocalPasskey, disableSecurity }:
               environment: log.environment || 'Quiet Clinical Space',
               repairStrategies: Array.isArray(log.repairStrategies) ? log.repairStrategies : [],
               notes: log.notes,
-              environmentalDifficulty: log.environmentalDifficulty
+              environmentalDifficulty: log.environmentalDifficulty,
+              environmentalNoiseLevel: log.environmentalNoiseLevel !== undefined ? log.environmentalNoiseLevel : log.environmentalDifficulty,
+              naiveListenerScore: log.naiveListenerScore
             });
           }
         }
