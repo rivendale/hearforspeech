@@ -706,7 +706,7 @@ export default function App() {
             <Activity size={22} className="animate-pulse" />
           </div>
           <div className="text-left">
-            <h1 className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <h1 className="hfs-brand-title font-black text-lg tracking-tight bg-clip-text text-transparent">
               Hear for Speech
             </h1>
             <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Bright guided SLP toolkit</p>

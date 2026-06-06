@@ -42,10 +42,15 @@ button, a, [role="button"], select, input[type="range"] {
 
 .hfs-daylight {
   background:
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 34rem),
-    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.12), transparent 32rem),
-    linear-gradient(180deg, #f8fcff 0%, #eef7ff 52%, #f8fafc 100%);
-  color: #0f172a;
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.24), transparent 28rem),
+    radial-gradient(circle at bottom right, rgba(13, 148, 136, 0.22), transparent 28rem),
+    linear-gradient(180deg, #dbeafe 0%, #ecfeff 42%, #fff7ed 100%);
+  color: #07111f;
+}
+
+.hfs-daylight .hfs-brand-title {
+  background-image: linear-gradient(90deg, #0f3b8f 0%, #6d28d9 48%, #be123c 100%) !important;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.9));
 }
 
 .hfs-daylight .bg-slate-950,
@@ -63,7 +68,16 @@ button, a, [role="button"], select, input[type="range"] {
 .hfs-daylight .bg-slate-800,
 .hfs-daylight .bg-slate-800\/80,
 .hfs-daylight .bg-slate-700 {
-  background-color: rgba(255, 255, 255, 0.92) !important;
+  background-color: #ffffff !important;
+}
+
+.hfs-daylight .bg-gradient-to-br {
+  background-image: linear-gradient(135deg, #ffffff 0%, #dbeafe 48%, #ccfbf1 100%) !important;
+  border-color: #60a5fa !important;
+}
+
+.hfs-daylight .bg-gradient-to-r:not(.bg-clip-text) {
+  background-image: linear-gradient(90deg, #1d4ed8 0%, #0f766e 100%) !important;
 }
 
 .hfs-daylight .border-slate-900,
@@ -73,7 +87,7 @@ button, a, [role="button"], select, input[type="range"] {
 .hfs-daylight .border-slate-700\/80,
 .hfs-daylight .border-slate-750,
 .hfs-daylight .border-slate-805 {
-  border-color: #cbd5e1 !important;
+  border-color: #93c5fd !important;
 }
 
 .hfs-daylight .text-white,
@@ -98,22 +112,32 @@ button, a, [role="button"], select, input[type="range"] {
 .hfs-daylight .text-amber-200,
 .hfs-daylight .text-purple-200,
 .hfs-daylight .text-pink-200 {
-  color: #0f172a !important;
+  color: #07111f !important;
 }
 
 .hfs-daylight .text-indigo-400,
 .hfs-daylight .text-cyan-300,
 .hfs-daylight .text-cyan-400 {
-  color: #0369a1 !important;
+  color: #075985 !important;
 }
 
 .hfs-daylight .text-emerald-400 {
-  color: #047857 !important;
+  color: #065f46 !important;
 }
 
 .hfs-daylight .text-pink-400,
 .hfs-daylight .text-purple-400 {
-  color: #7c3aed !important;
+  color: #6d28d9 !important;
+}
+
+.hfs-daylight .text-amber-400,
+.hfs-daylight .text-amber-300 {
+  color: #92400e !important;
+}
+
+.hfs-daylight .text-rose-300,
+.hfs-daylight .text-rose-400 {
+  color: #be123c !important;
 }
 
 .hfs-daylight .bg-indigo-600.text-white,
@@ -137,7 +161,7 @@ button, a, [role="button"], select, input[type="range"] {
   background-color: #ffffff !important;
   color: #0f172a !important;
   border-color: #cbd5e1 !important;
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(37, 99, 235, 0.04);
 }
 
 .hfs-daylight input::placeholder,
@@ -148,7 +172,7 @@ button, a, [role="button"], select, input[type="range"] {
 .hfs-daylight section,
 .hfs-daylight .shadow-xl,
 .hfs-daylight .shadow-2xl {
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 18px 48px rgba(30, 64, 175, 0.16);
 }
 
 .hfs-daylight nav {
@@ -156,9 +180,33 @@ button, a, [role="button"], select, input[type="range"] {
 }
 
 .hfs-workflow-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.94));
-  border: 1px solid #bfdbfe;
-  box-shadow: 0 18px 48px rgba(37, 99, 235, 0.12);
+  background: linear-gradient(135deg, #ffffff 0%, #dbeafe 46%, #99f6e4 100%);
+  border: 2px solid #2563eb;
+  box-shadow: 0 18px 48px rgba(37, 99, 235, 0.2);
+}
+
+.hfs-daylight .bg-white,
+.hfs-daylight .bg-white\/80 {
+  background-color: #ffffff !important;
+}
+
+.hfs-daylight .bg-blue-50 {
+  background-color: #dbeafe !important;
+}
+
+.hfs-daylight .border-blue-100 {
+  border-color: #60a5fa !important;
+}
+
+.hfs-daylight .text-blue-700 {
+  color: #1d4ed8 !important;
+}
+
+.hfs-daylight .text-slate-600,
+.hfs-daylight .text-slate-700,
+.hfs-daylight .text-slate-800,
+.hfs-daylight .text-slate-950 {
+  color: #07111f !important;
 }
 
 .hfs-printable {
