@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #F8FAFC;
+  overscroll-behavior-y: contain; /* Prevents bounce scroll on mobile */
+}
+
+/* This resets the default vite #root div to be full screen for our PWA */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
