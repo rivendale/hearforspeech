@@ -121,6 +121,11 @@ export interface Assessment {
   studentAge?: number;
   primaryConcern?: string;
   setting?: string;
+  timeBudgetMinutes?: number;
+  focusTargets?: string[];
+  clinicianNotes?: string;
+  therapyIdeas?: string;
+  homePractice?: string;
   consentConfirmed: boolean;
   status: AssessmentStatus;
   startedAt: string;
@@ -139,6 +144,7 @@ export interface AssessmentItem {
   prompt: string;
   helperText?: string;
   scriptText?: string;
+  listenFor?: string[];
   kind: AssessmentItemKind;
   status: 'not_started' | 'in_progress' | 'complete';
   result?: string;
