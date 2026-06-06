@@ -10,6 +10,7 @@ import {
   FileText,
   Mic,
   PauseCircle,
+  Printer,
   Save,
   Sparkles,
   Square,
@@ -27,6 +28,7 @@ import {
 } from '../db/database';
 import { useStore } from '../store/useStore';
 import { encryptRecording } from '../utils/crypto';
+import { PrintableHandout } from '../components/PrintableHandout';
 
 type TemplateItem = Omit<AssessmentItem, 'id' | 'assessmentId' | 'status' | 'createdAt' | 'updatedAt' | 'recordingIds'>;
 type TemplateDefinition = {
@@ -590,6 +592,55 @@ const buildPracticePlanDraft = (assessment: Assessment, items: AssessmentItem[])
     'Home practice: 5 minutes, 3 times this week, using plain language and praise for effort before correction.',
     'Clinician controls all interpretation, goal selection, and whether formal standardized measures are needed.'
   ].join('\n');
+};
+
+const friendlyFocusLabel = (focus: string) => FOCUS_OPTIONS.find(option => option.id === focus)?.label || focus.replace(/_/g, ' ');
+
+const buildPatientHandoutSections = (
+  assessment: Assessment,
+  items: AssessmentItem[],
+  supportPlanDraft: string
+) => {
+  const targets = mergeUnique([
+    ...items.flatMap(item => item.soundTargets || []),
+    ...(assessment.focusTargets || []).map(friendlyFocusLabel)
+  ]).slice(0, 6);
+  const targetText = targets.length > 0 ? targets.join(', ') : assessment.primaryConcern || 'clear speech';
+  const cueItem = items.find(item => item.kind === 'stimulability' && (item.cueLevel || item.analysisTags?.length));
+  const cueText = cueItem?.cueLevel
+    ? `Use a ${cueItem.cueLevel} cue first. Then try to fade help when the sound is clear.`
+    : 'Slow down, listen for your clearest sound, and try again if it is not clear yet.';
+  const suggestedTargets = targets.some(target => target.toLowerCase().includes('/r'))
+    ? 'red, rain, ring, car, star, bird, teacher, around, green, practice'
+    : 'Pick 5–10 words from today’s session. Say each one slowly, then use it in a short sentence.';
+  const patientPlan = supportPlanDraft
+    .split('\n')
+    .filter(line => !/clinician controls|formal standardized|therapy\/practice starter/i.test(line))
+    .join('\n')
+    .trim();
+
+  return [
+    {
+      title: 'What We Worked On',
+      body: `Today we listened to and practiced ${targetText}. This was a practice and planning activity, not a pass/fail test.`
+    },
+    {
+      title: 'Try These Practice Targets',
+      body: suggestedTargets
+    },
+    {
+      title: 'Helpful Cue',
+      body: cueText
+    },
+    {
+      title: 'Practice Plan',
+      body: patientPlan || 'Practice for 5 minutes, 3 times this week. Keep it short, calm, and encouraging.'
+    },
+    {
+      title: 'Encouragement',
+      body: 'Praise effort first. Clear speech grows with short, steady practice and support from the SLP.'
+    }
+  ];
 };
 
 const createId = () => {
@@ -1590,7 +1641,22 @@ export function AssessmentTab() {
             placeholder="Generate a draft, then edit into therapy ideas or caregiver-friendly practice."
             className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 leading-relaxed placeholder-slate-600 select-text ${FOCUS_CLASS}`}
           />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="bg-white border border-blue-100 rounded-3xl p-4 text-left shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Patient handout preview</p>
+            <h4 className="text-base font-black text-slate-950 mt-1">{selectedClient?.displayName || 'Student'} practice sheet</h4>
+            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+              This creates a plain-language sheet from the assessment. On phones, choose <strong>Print</strong>, then <strong>Save as PDF</strong> if available.
+            </p>
+            <div className="mt-3 grid gap-2">
+              {buildPatientHandoutSections(activeAssessment, activeItems, supportPlanDraft).slice(0, 3).map(section => (
+                <div key={section.title} className="rounded-2xl bg-blue-50 border border-blue-100 p-3">
+                  <p className="text-xs font-black text-slate-950">{section.title}</p>
+                  <p className="text-xs text-slate-700 mt-1 leading-relaxed whitespace-pre-wrap">{section.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
             <button
               type="button"
               onClick={copySummary}
@@ -1609,6 +1675,14 @@ export function AssessmentTab() {
             </button>
             <button
               type="button"
+              onClick={() => window.print()}
+              className={`${BUTTON_CLASS} bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2`}
+            >
+              <Printer size={16} />
+              Print PDF
+            </button>
+            <button
+              type="button"
               onClick={() => saveAssessmentSummary(true)}
               className={`${BUTTON_CLASS} bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2`}
             >
@@ -1621,6 +1695,13 @@ export function AssessmentTab() {
               This is an editable draft based on local checklist entries and recordings. The SLP remains responsible for reviewing audio, selecting formal measures, interpreting results, and writing final diagnostic conclusions.
             </p>
           </div>
+          <PrintableHandout
+            title="Speech Practice Sheet"
+            studentName={selectedClient?.displayName}
+            subtitle="Plain-language practice after today’s speech assessment."
+            sections={buildPatientHandoutSections(activeAssessment, activeItems, supportPlanDraft)}
+            footerNote="This handout is clinician-reviewed practice guidance. It does not diagnose or replace the SLP’s clinical judgment."
+          />
         </section>
       ) : (
         <section className="space-y-3">

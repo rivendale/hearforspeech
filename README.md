@@ -6,6 +6,8 @@ The primary workflow is now session-centered:
 
 **Client or student → Goal → Session → Trials → Cueing → Session note → Home practice → Progress**
 
+The interface is brighter and mobile-first so an SLP can use it on a phone in a real session. The Session and Assess tabs include a small three-step guide: pick the path, capture speech/data, then print or save a patient-friendly practice sheet.
+
 Hear for Speech supports SLP judgment. It does not diagnose, prescribe treatment, replace clinical decision-making, or determine eligibility.
 
 ---
@@ -42,6 +44,7 @@ Hear for Speech supports SLP judgment. It does not diagnose, prescribe treatment
    - Biofeedback
    - Self-monitoring
 8. End the session, edit the generated documentation and home practice, then save locally.
+9. Review the **Patient handout preview**, then tap **Print / Save PDF** to print or save a practice sheet for the student/family.
 
 ### Session Data
 The guided workflow calculates:
@@ -81,6 +84,17 @@ Use **Assess** when the SLP has only a phone/tablet and needs to start quickly:
 7. Generate editable diagnostic summary, recommendations, and therapy/home-practice starter text.
 
 The assessment workflow is checklist-driven and local-first. It supports clinical organization, documentation, and therapy planning, but the SLP remains responsible for interpretation, diagnosis, eligibility decisions, and any standardized assessment requirements.
+
+### Printable Student / Caregiver Handouts
+
+Session and assessment summaries include a **Patient handout preview** and **Print / Save PDF** action:
+
+1. Review and edit the generated home-practice or practice-starter text.
+2. Tap **Print / Save PDF**.
+3. On mobile, use the browser/device print sheet, then choose **Save as PDF** or print to a connected printer.
+4. Share only after the SLP confirms the target, cue, practice schedule, and caregiver wording.
+
+Printed handouts use plain language and are designed for one student/family. They do not include other client records.
 
 - **Teen Speech Clarity Screen** for a broad adolescent speech/intelligibility walkthrough
 - **/r/ Diagnostic Deep Dive** for prevocalic, vocalic, blend, sentence, and stimulability probes
