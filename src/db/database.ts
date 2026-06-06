@@ -38,6 +38,9 @@ export type TrialResult = 'correct' | 'approx' | 'not_yet';
 export type CueLevel = 'independent' | 'minimal' | 'moderate' | 'maximal';
 export type GoalStatus = 'active' | 'paused' | 'met' | 'archived';
 export type ListenerConfidence = 'low' | 'medium' | 'high';
+export type AssessmentStatus = 'draft' | 'completed';
+export type AssessmentTemplate = 'adolescent_speech_intelligibility';
+export type AssessmentItemKind = 'checklist' | 'question' | 'speech_sample' | 'sound_probe' | 'stimulability' | 'listener_check' | 'summary';
 
 export interface ClientProfile {
   id: string;
@@ -111,6 +114,41 @@ export interface ListenerCheck {
   createdAt: string;
 }
 
+export interface Assessment {
+  id: string;
+  clientId: string;
+  template: AssessmentTemplate;
+  studentAge?: number;
+  primaryConcern?: string;
+  setting?: string;
+  consentConfirmed: boolean;
+  status: AssessmentStatus;
+  startedAt: string;
+  completedAt?: string;
+  summary?: string;
+  recommendations?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssessmentItem {
+  id: string;
+  assessmentId: string;
+  sectionKey: string;
+  sectionTitle: string;
+  prompt: string;
+  helperText?: string;
+  kind: AssessmentItemKind;
+  status: 'not_started' | 'in_progress' | 'complete';
+  result?: string;
+  notes?: string;
+  cueLevel?: CueLevel;
+  recordingIds?: number[];
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export class HearForSpeechDB extends Dexie {
   logs!: Table<SessionLog>;
   recordings!: Table<Recording>;
@@ -119,6 +157,8 @@ export class HearForSpeechDB extends Dexie {
   guidedSessions!: Table<GuidedSession>;
   trials!: Table<Trial>;
   listenerChecks!: Table<ListenerCheck>;
+  assessments!: Table<Assessment>;
+  assessmentItems!: Table<AssessmentItem>;
 
   constructor() {
     super('HearForSpeechDB');
@@ -143,6 +183,17 @@ export class HearForSpeechDB extends Dexie {
       trials: 'id, sessionId, createdAt, result, cueLevel',
       listenerChecks: 'id, clientId, sessionId, createdAt, score'
     });
+    this.version(7).stores({
+      logs: '++id, date, rating, pcc, environment, environmentalDifficulty, environmentalNoiseLevel, naiveListenerScore',
+      recordings: '++id, date, name',
+      clients: 'id, displayName, initials, updatedAt',
+      goals: 'id, clientId, status, targetArea, targetPhoneme, level, updatedAt',
+      guidedSessions: 'id, clientId, goalId, date, createdAt, target, practiceLevel',
+      trials: 'id, sessionId, createdAt, result, cueLevel',
+      listenerChecks: 'id, clientId, sessionId, createdAt, score',
+      assessments: 'id, clientId, template, status, startedAt, updatedAt',
+      assessmentItems: 'id, assessmentId, sectionKey, kind, status, sortOrder, updatedAt'
+    });
   }
 }
 
@@ -158,6 +209,8 @@ export interface BackupPayload {
     guidedSessions?: GuidedSession[];
     trials?: Trial[];
     listenerChecks?: ListenerCheck[];
+    assessments?: Assessment[];
+    assessmentItems?: AssessmentItem[];
     recordings: {
       id?: number;
       date: string;

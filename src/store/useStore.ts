@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 
 interface AppState {
-  activeTab: 'session' | 'visualizer' | 'tracker' | 'protocol' | 'export';
-  setActiveTab: (tab: 'session' | 'visualizer' | 'tracker' | 'protocol' | 'export') => void;
+  activeTab: 'session' | 'assessment' | 'visualizer' | 'tracker' | 'protocol' | 'export';
+  setActiveTab: (tab: 'session' | 'assessment' | 'visualizer' | 'tracker' | 'protocol' | 'export') => void;
   hasLocalAI: boolean;
   setHasLocalAI: (has: boolean) => void;
   aiStatus: string;
