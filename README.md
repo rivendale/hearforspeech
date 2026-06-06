@@ -68,6 +68,20 @@ Use the **Assess** tab when the SLP needs a diagnostic-style walkthrough for an 
 
 The built-in Assessment Coach offers several teen-focused paths:
 
+### Phone-First Guided Assessment
+
+Use **Assess** when the SLP has only a phone/tablet and needs to start quickly:
+
+1. Tap a quick-start card such as **I have 10 minutes**, **14-year-old diagnostic**, **/r/ deep dive**, or **School participation**.
+2. Select/create the student, choose the time available, and tap focus chips for articulation, intelligibility, connected speech, cueing response, Listener Check, adult input, or practice planning.
+3. Add an optional custom target such as “vocalic /r/ in conversation” or “classroom presentation clarity.”
+4. Follow each **Do this now** card: say the script, record if useful, listen for the listed observations, tap a result, and add one-tap notes.
+5. Use the SLP scratchpad for fast observations, parent questions, therapy ideas, and follow-up probes.
+6. Add custom lines during the assessment whenever the clinician hears something unexpected.
+7. Generate editable diagnostic summary, recommendations, and therapy/home-practice starter text.
+
+The assessment workflow is checklist-driven and local-first. It supports clinical organization, documentation, and therapy planning, but the SLP remains responsible for interpretation, diagnosis, eligibility decisions, and any standardized assessment requirements.
+
 - **Teen Speech Clarity Screen** for a broad adolescent speech/intelligibility walkthrough
 - **/r/ Diagnostic Deep Dive** for prevocalic, vocalic, blend, sentence, and stimulability probes
 - **Connected Speech + Intelligibility** for natural samples, listener burden, repair strategies, and participation impact

@@ -36,6 +36,21 @@ type TemplateDefinition = {
   defaultConcern: string;
   items: TemplateItem[];
 };
+type FocusOption = {
+  id: string;
+  label: string;
+  helper: string;
+};
+type QuickStartPreset = {
+  id: string;
+  title: string;
+  subtitle: string;
+  template: Assessment['template'];
+  concern: string;
+  minutes: number;
+  focusTargets: string[];
+  setting: string;
+};
 
 const FOCUS_CLASS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300';
 const BUTTON_CLASS = `min-h-[48px] rounded-2xl font-extrabold transition active:scale-98 ${FOCUS_CLASS}`;
@@ -45,6 +60,68 @@ const CUE_LEVELS: { value: CueLevel; label: string }[] = [
   { value: 'minimal', label: 'Minimal' },
   { value: 'moderate', label: 'Moderate' },
   { value: 'maximal', label: 'Maximal' }
+];
+
+const FOCUS_OPTIONS: FocusOption[] = [
+  { id: 'articulation', label: 'Artic sounds', helper: 'word positions, substitutions, distortions' },
+  { id: 'rhotic_r', label: '/r/ deep dive', helper: 'prevocalic, vocalic, blends, sentences' },
+  { id: 'intelligibility', label: 'Intelligibility', helper: 'how clear speech is to listeners' },
+  { id: 'connected_speech', label: 'Connected speech', helper: 'conversation, narrative, explanation' },
+  { id: 'school_participation', label: 'School impact', helper: 'classroom, peers, presentations' },
+  { id: 'stimulability', label: 'Cueing response', helper: 'what support helps fastest' },
+  { id: 'listener_check', label: 'Listener Check', helper: 'clear/unclear from an unfamiliar listener' },
+  { id: 'caregiver_teacher', label: 'Adult input', helper: 'caregiver or teacher concern' },
+  { id: 'practice_plan', label: 'Practice plan', helper: 'therapy ideas and home practice' }
+];
+
+const TEMPLATE_FOCUS: Record<Assessment['template'], string[]> = {
+  adolescent_speech_intelligibility: ['articulation', 'intelligibility', 'connected_speech', 'stimulability', 'listener_check', 'practice_plan'],
+  rhotic_r_diagnostic: ['rhotic_r', 'articulation', 'stimulability', 'listener_check', 'practice_plan'],
+  connected_speech_participation: ['intelligibility', 'connected_speech', 'school_participation', 'listener_check', 'practice_plan'],
+  school_participation_interview: ['school_participation', 'connected_speech', 'caregiver_teacher', 'practice_plan']
+};
+
+const QUICK_START_PRESETS: QuickStartPreset[] = [
+  {
+    id: 'phone_triage',
+    title: 'I have 10 minutes',
+    subtitle: 'Consent, concern, one speech sample, focused probe, cueing, listener check, draft.',
+    template: 'adolescent_speech_intelligibility',
+    concern: 'Quick phone-based screen for speech clarity, cueing response, and next-step planning.',
+    minutes: 10,
+    focusTargets: ['articulation', 'intelligibility', 'connected_speech', 'stimulability', 'listener_check', 'practice_plan'],
+    setting: 'Quick speech-language check'
+  },
+  {
+    id: 'teen_full',
+    title: '14-year-old diagnostic',
+    subtitle: 'Teen-friendly broad articulation, intelligibility, participation, and stimulability guide.',
+    template: 'adolescent_speech_intelligibility',
+    concern: 'Adolescent speech clarity and intelligibility across school, conversation, and unfamiliar listeners.',
+    minutes: 30,
+    focusTargets: ['articulation', 'intelligibility', 'connected_speech', 'school_participation', 'caregiver_teacher', 'stimulability', 'listener_check', 'practice_plan'],
+    setting: 'Speech-language diagnostic assessment'
+  },
+  {
+    id: 'r_deep',
+    title: '/r/ deep dive',
+    subtitle: 'Fast rhotic probe with word positions, loaded sentences, cueing response, and practice plan.',
+    template: 'rhotic_r_diagnostic',
+    concern: 'Primary concern is /r/ clarity across words, sentences, and connected speech.',
+    minutes: 20,
+    focusTargets: ['rhotic_r', 'articulation', 'stimulability', 'listener_check', 'practice_plan'],
+    setting: '/r/ diagnostic probe'
+  },
+  {
+    id: 'school_voice',
+    title: 'School participation',
+    subtitle: 'Student voice, classroom speaking tasks, functional impact, and advocacy supports.',
+    template: 'school_participation_interview',
+    concern: 'Speech clarity may affect classroom participation, peer interaction, presentations, or confidence.',
+    minutes: 20,
+    focusTargets: ['school_participation', 'connected_speech', 'caregiver_teacher', 'practice_plan'],
+    setting: 'School participation speech check'
+  }
 ];
 
 const BROAD_SCREEN_ITEMS: TemplateItem[] = [
@@ -404,6 +481,117 @@ const getTemplateDefinition = (template: Assessment['template']) => (
   ASSESSMENT_TEMPLATES.find(item => item.id === template) || ASSESSMENT_TEMPLATES[0]
 );
 
+const mergeUnique = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
+
+const isSpeechRecordable = (kind: AssessmentItemKind) => ['speech_sample', 'sound_probe', 'stimulability', 'listener_check'].includes(kind);
+
+const buildCustomTargetItem = (customTarget: string): TemplateItem | null => {
+  const trimmedTarget = customTarget.trim();
+  if (!trimmedTarget) return null;
+
+  return {
+    sectionKey: 'custom_probe',
+    sectionTitle: 'Custom Target',
+    prompt: `Custom probe: ${trimmedTarget}`,
+    helperText: 'Use this line for the sound, word list, phrase list, or functional target the SLP needs today.',
+    scriptText: `Try these targets slowly: ${trimmedTarget}.`,
+    listenFor: ['Which targets are clear now?', 'Which contexts break down?', 'What cue helps with the least support?'],
+    kind: 'sound_probe',
+    soundTargets: [trimmedTarget],
+    wordPositions: ['custom'],
+    analysisTags: ['custom target'],
+    sortOrder: 115
+  };
+};
+
+const shouldKeepForFastPlan = (item: TemplateItem, focusTargets: string[]) => {
+  if (['summary', 'consent'].includes(item.sectionKey)) return true;
+  if (item.sectionKey === 'caregiver') return focusTargets.includes('caregiver_teacher');
+  if (item.sectionKey === 'screening') return focusTargets.includes('caregiver_teacher') || focusTargets.includes('articulation');
+  if (item.sectionKey === 'reading') return focusTargets.includes('articulation') || focusTargets.includes('rhotic_r');
+  if (item.sectionKey === 'listener') return focusTargets.includes('listener_check');
+  if (item.sectionKey === 'stimulability') return focusTargets.includes('stimulability') || focusTargets.includes('rhotic_r');
+  if (item.sectionKey === 'participation' || item.sectionKey === 'student_voice') return focusTargets.includes('school_participation');
+  if (item.kind === 'speech_sample') return focusTargets.includes('connected_speech') || focusTargets.includes('intelligibility') || focusTargets.includes('school_participation');
+  if (item.kind === 'sound_probe') {
+    if (focusTargets.includes('rhotic_r')) return item.soundTargets?.some(target => target.toLowerCase().includes('/r')) || false;
+    return focusTargets.includes('articulation');
+  }
+  return true;
+};
+
+const buildCustomizedItems = (
+  templateDefinition: TemplateDefinition,
+  focusTargets: string[],
+  timeBudgetMinutes: number,
+  customTarget: string
+) => {
+  const customItem = buildCustomTargetItem(customTarget);
+  const baseItems = customItem
+    ? [...templateDefinition.items, customItem]
+    : [...templateDefinition.items];
+
+  if (timeBudgetMinutes > 15) {
+    return baseItems.sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+
+  const seenBySection = new Map<string, number>();
+  return baseItems
+    .filter(item => {
+      if (!shouldKeepForFastPlan(item, focusTargets)) return false;
+      if (item.sectionKey === 'summary' || item.sectionKey === 'custom_probe') return true;
+      const seenCount = seenBySection.get(item.sectionKey) || 0;
+      const maxForSection = item.sectionKey === 'sound_probes' ? 2 : 1;
+      if (seenCount >= maxForSection) return false;
+      seenBySection.set(item.sectionKey, seenCount + 1);
+      return true;
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+};
+
+const listenForItem = (item: AssessmentItem) => {
+  if (item.listenFor?.length) return item.listenFor;
+  if (item.kind === 'sound_probe') return ['Sound clarity by word position', 'Consistent vs. inconsistent errors', 'Effect of slowed rate or model'];
+  if (item.kind === 'speech_sample') return ['Overall intelligibility', 'Rate, volume, and repair attempts', 'Breakdowns in longer connected speech'];
+  if (item.kind === 'stimulability') return ['Least cue that helps', 'Whether the student can imitate', 'Whether self-monitoring improves the target'];
+  if (item.kind === 'listener_check') return ['Clear vs. unclear items', 'Listener confidence', 'Patterns across words or sentences'];
+  if (item.kind === 'participation') return ['Avoidance or confidence changes', 'Contexts with communication breakdown', 'Supports the student already uses'];
+  if (item.kind === 'caregiver_interview') return ['Functional contexts', 'Unfamiliar listener difficulty', 'Settings where support is needed'];
+  return ['What the SLP observes', 'Whether follow-up is needed', 'Any clinical or contextual notes'];
+};
+
+const quickNoteOptionsForItem = (item: AssessmentItem) => {
+  if (item.kind === 'sound_probe') return ['initial harder', 'final harder', 'inconsistent', 'better with model', 'slowed rate helped'];
+  if (item.kind === 'speech_sample') return ['clear in short answers', 'breaks down in conversation', 'rate affects clarity', 'repair needed', 'recording saved'];
+  if (item.kind === 'stimulability') return ['minimal cue helped', 'visual cue helped', 'self-monitoring emerging', 'needs more support'];
+  if (item.kind === 'listener_check') return ['listener unsure', 'clear in quiet', 'unclear with longer items'];
+  if (item.kind === 'participation') return ['classroom impact', 'presentation concern', 'peer impact', 'avoidance reported'];
+  if (item.kind === 'student_rating') return ['student reports concern', 'student reports confidence', 'wants help'];
+  if (item.kind === 'caregiver_interview') return ['caregiver concern', 'teacher input needed', 'home practice feasible'];
+  return ['WNL today', 'monitor', 'needs follow-up', 'not enough data'];
+};
+
+const buildPracticePlanDraft = (assessment: Assessment, items: AssessmentItem[]) => {
+  const targets = mergeUnique([
+    ...(assessment.focusTargets || []),
+    ...items.flatMap(item => item.soundTargets || []),
+    ...items.flatMap(item => item.analysisTags || [])
+  ]).slice(0, 8);
+  const strongestCue = items.find(item => item.cueLevel)?.cueLevel;
+  const targetLabel = targets.length > 0 ? targets.join(', ') : assessment.primaryConcern || 'speech clarity';
+
+  return [
+    `Therapy/practice starter: Focus on ${targetLabel}.`,
+    `Begin with the easiest successful level observed today, then increase length only when productions stay clear.`,
+    strongestCue
+      ? `Use ${strongestCue} cueing first, then fade support as the student can self-monitor.`
+      : 'Start with a model, slowed rate, and one clear self-monitoring cue; document the least support that helps.',
+    'Phone-friendly drill: record 5–10 targets, play back one clear example and one “try again” example, then let the student choose the best attempt.',
+    'Home practice: 5 minutes, 3 times this week, using plain language and praise for effort before correction.',
+    'Clinician controls all interpretation, goal selection, and whether formal standardized measures are needed.'
+  ].join('\n');
+};
+
 const createId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -528,9 +716,16 @@ const buildAssessmentDraft = (assessment: Assessment, client: ClientProfile | un
   const soundPatternSummary = summarizeBySound(items);
   const functionalSummary = summarizeFunctionalContexts(items);
   const followUpFlags = buildFollowUpFlags(items);
+  const focusSummary = assessment.focusTargets?.length ? assessment.focusTargets.join(', ') : 'SLP-selected assessment focus';
+  const setupSummary = `${assessment.timeBudgetMinutes || 'Untimed'} minute guide${assessment.setting ? ` in ${assessment.setting}` : ''}; focus: ${focusSummary}.`;
+  const clinicianScratchpad = assessment.clinicianNotes?.trim()
+    ? `SLP scratchpad / ideas entered during assessment:\n${assessment.clinicianNotes.trim()}`
+    : 'SLP scratchpad / ideas entered during assessment: none entered yet.';
+  const supportPlan = buildPracticePlanDraft(assessment, items);
 
   const summary = [
     `Diagnostic assessment draft for ${client?.displayName || 'student'}${assessment.studentAge ? `, age ${assessment.studentAge}` : ''}.`,
+    `Assessment setup: ${setupSummary}`,
     `Reason/concern: ${assessment.primaryConcern || 'Speech clarity/intelligibility concern noted by clinician or caregiver.'}`,
     `Assessment activities completed: ${completedItems.length}/${items.length} checklist/probe items, ${sampleItems.filter(item => item.recordingIds?.length).length} connected speech samples with audio, and ${recordingCount} total linked recordings.`,
     `Sound probe observations: ${probeSummary}.`,
@@ -538,6 +733,7 @@ const buildAssessmentDraft = (assessment: Assessment, client: ClientProfile | un
     `Functional participation summary:\n${functionalSummary}`,
     `Cueing/stimulability observations: ${cueSummary}.`,
     `Functional/clinical observation flags: ${concernSummary}.`,
+    clinicianScratchpad,
     `Consider / follow-up flags:\n${followUpFlags.map(flag => `- ${flag}`).join('\n')}`,
     'Clinical interpretation: This draft summarizes local checklist data and recordings. The SLP should review audio, compare findings with standardized or district-required measures when appropriate, and apply clinical judgment before diagnosing or making eligibility/treatment decisions.'
   ].join('\n\n');
@@ -546,12 +742,13 @@ const buildAssessmentDraft = (assessment: Assessment, client: ClientProfile | un
     .concat([
       'Consider reviewing connected speech recordings for intelligibility, rate, consistency, and self-monitoring.',
       'Consider using Listener Check results only as supporting functional data, not as a standalone diagnostic decision.',
+      'Consider using the practice starter as a clinician-editable bridge from assessment to first therapy activities.',
       'Consider sharing plain-language home practice only after the SLP confirms targets and next steps.'
     ])
     .map(item => `- ${item}`)
     .join('\n');
 
-  return { summary, recommendations };
+  return { summary, recommendations, supportPlan };
 };
 
 export function AssessmentTab() {
@@ -566,13 +763,21 @@ export function AssessmentTab() {
   const [studentAge, setStudentAge] = useState('14');
   const [primaryConcern, setPrimaryConcern] = useState('Speech clarity is harder in class, conversation, or with unfamiliar listeners.');
   const [setting, setSetting] = useState('Speech-language evaluation');
+  const [timeBudgetMinutes, setTimeBudgetMinutes] = useState(20);
+  const [focusTargets, setFocusTargets] = useState<string[]>(TEMPLATE_FOCUS.adolescent_speech_intelligibility);
+  const [customTarget, setCustomTarget] = useState('');
+  const [clinicianNotes, setClinicianNotes] = useState('');
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [sectionIndex, setSectionIndex] = useState(0);
   const [summaryDraft, setSummaryDraft] = useState('');
   const [recommendationsDraft, setRecommendationsDraft] = useState('');
+  const [supportPlanDraft, setSupportPlanDraft] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
   const [recordingItemId, setRecordingItemId] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [customLinePrompt, setCustomLinePrompt] = useState('');
+  const [customLineScript, setCustomLineScript] = useState('');
+  const [customLineKind, setCustomLineKind] = useState<AssessmentItemKind>('speech_sample');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -610,6 +815,10 @@ export function AssessmentTab() {
   );
   const completedCount = activeItems.filter(item => item.status === 'complete').length;
   const progressPct = activeItems.length > 0 ? Math.round((completedCount / activeItems.length) * 100) : 0;
+  const currentCoachItem = currentSectionItems.find(item => item.status !== 'complete') || currentSectionItems[0];
+  const focusLabelSummary = focusTargets
+    .map(target => FOCUS_OPTIONS.find(option => option.id === target)?.label || target)
+    .join(', ');
 
   useEffect(() => {
     let active = true;
@@ -665,6 +874,47 @@ export function AssessmentTab() {
     return client.id;
   };
 
+  const selectAssessmentTemplate = (templateId: Assessment['template']) => {
+    const templateDefinition = getTemplateDefinition(templateId);
+    setSelectedTemplate(templateDefinition.id);
+    setPrimaryConcern(templateDefinition.defaultConcern);
+    setFocusTargets(TEMPLATE_FOCUS[templateDefinition.id]);
+  };
+
+  const applyPreset = (preset: QuickStartPreset) => {
+    setSelectedTemplate(preset.template);
+    setPrimaryConcern(preset.concern);
+    setSetting(preset.setting);
+    setTimeBudgetMinutes(preset.minutes);
+    setFocusTargets(preset.focusTargets);
+  };
+
+  const toggleFocusTarget = (targetId: string) => {
+    setFocusTargets(prev => (
+      prev.includes(targetId)
+        ? prev.filter(target => target !== targetId)
+        : [...prev, targetId]
+    ));
+  };
+
+  const updateActiveAssessment = async (patch: Partial<Assessment>) => {
+    if (!activeAssessment) return;
+    const updatedAt = new Date().toISOString();
+    const nextPatch = { ...patch, updatedAt };
+    await db.assessments.update(activeAssessment.id, nextPatch);
+    setAssessments(prev => prev.map(assessment => assessment.id === activeAssessment.id ? { ...assessment, ...nextPatch } : assessment));
+  };
+
+  const saveClinicianNotes = async () => {
+    await updateActiveAssessment({
+      clinicianNotes: clinicianNotes.trim() || undefined,
+      timeBudgetMinutes,
+      focusTargets
+    });
+    setSaveStatus('Assessment notes saved locally.');
+    setTimeout(() => setSaveStatus(''), 1400);
+  };
+
   const startAssessment = async () => {
     if (!consentConfirmed) {
       alert('Confirm assessment and recording consent before starting.');
@@ -677,6 +927,10 @@ export function AssessmentTab() {
     const now = new Date().toISOString();
     const assessmentId = createId();
     const templateDefinition = getTemplateDefinition(selectedTemplate);
+    const selectedFocusTargets = mergeUnique([
+      ...focusTargets,
+      ...(customTarget.trim() ? ['custom_target'] : [])
+    ]);
     const assessment: Assessment = {
       id: assessmentId,
       clientId,
@@ -684,6 +938,9 @@ export function AssessmentTab() {
       studentAge: studentAge ? Number(studentAge) : undefined,
       primaryConcern: primaryConcern.trim() || undefined,
       setting: setting.trim() || undefined,
+      timeBudgetMinutes,
+      focusTargets: selectedFocusTargets,
+      clinicianNotes: clinicianNotes.trim() || undefined,
       consentConfirmed,
       status: 'draft',
       startedAt: now,
@@ -691,7 +948,12 @@ export function AssessmentTab() {
       updatedAt: now
     };
 
-    const assessmentItems: AssessmentItem[] = templateDefinition.items.map(item => ({
+    const assessmentItems: AssessmentItem[] = buildCustomizedItems(
+      templateDefinition,
+      selectedFocusTargets,
+      timeBudgetMinutes,
+      customTarget
+    ).map(item => ({
       ...item,
       id: createId(),
       assessmentId,
@@ -710,9 +972,11 @@ export function AssessmentTab() {
     setItems(prev => [...prev, ...assessmentItems]);
     setActiveAssessmentId(assessmentId);
     setSelectedTemplate(templateDefinition.id);
+    setFocusTargets(selectedFocusTargets);
     setSectionIndex(0);
     setSummaryDraft('');
     setRecommendationsDraft('');
+    setSupportPlanDraft('');
   };
 
   const resumeAssessment = (assessment: Assessment) => {
@@ -721,6 +985,9 @@ export function AssessmentTab() {
     setStudentAge(assessment.studentAge?.toString() || '14');
     setPrimaryConcern(assessment.primaryConcern || '');
     setSetting(assessment.setting || 'Speech-language evaluation');
+    setTimeBudgetMinutes(assessment.timeBudgetMinutes || 20);
+    setFocusTargets(assessment.focusTargets?.length ? assessment.focusTargets : TEMPLATE_FOCUS[assessment.template]);
+    setClinicianNotes(assessment.clinicianNotes || '');
     setConsentConfirmed(assessment.consentConfirmed);
     const firstIncomplete = items
       .filter(item => item.assessmentId === assessment.id)
@@ -731,6 +998,7 @@ export function AssessmentTab() {
     setSectionIndex(Math.max(0, sectionKeys.indexOf(targetSection)));
     setSummaryDraft(assessment.summary || '');
     setRecommendationsDraft(assessment.recommendations || '');
+    setSupportPlanDraft(assessment.therapyIdeas || assessment.homePractice || '');
   };
 
   const updateItem = async (itemId: string, patch: Partial<AssessmentItem>) => {
@@ -804,9 +1072,15 @@ export function AssessmentTab() {
 
   const generateSummary = () => {
     if (!activeAssessment) return;
-    const draft = buildAssessmentDraft(activeAssessment, selectedClient, activeItems);
+    const draft = buildAssessmentDraft({
+      ...activeAssessment,
+      clinicianNotes,
+      timeBudgetMinutes,
+      focusTargets
+    }, selectedClient, activeItems);
     setSummaryDraft(draft.summary);
     setRecommendationsDraft(draft.recommendations);
+    setSupportPlanDraft(draft.supportPlan);
   };
 
   const saveAssessmentSummary = async (complete: boolean) => {
@@ -815,6 +1089,11 @@ export function AssessmentTab() {
     const patch: Partial<Assessment> = {
       summary: summaryDraft,
       recommendations: recommendationsDraft,
+      clinicianNotes: clinicianNotes.trim() || undefined,
+      therapyIdeas: supportPlanDraft,
+      homePractice: supportPlanDraft,
+      timeBudgetMinutes,
+      focusTargets,
       status: complete ? 'completed' : activeAssessment.status,
       completedAt: complete ? now : activeAssessment.completedAt,
       updatedAt: now
@@ -826,7 +1105,7 @@ export function AssessmentTab() {
   };
 
   const copySummary = async () => {
-    await navigator.clipboard.writeText(`${summaryDraft}\n\nRecommendations / follow-up considerations:\n${recommendationsDraft}`);
+    await navigator.clipboard.writeText(`${summaryDraft}\n\nRecommendations / follow-up considerations:\n${recommendationsDraft}\n\nTherapy / practice starter:\n${supportPlanDraft}`);
     setSaveStatus('Assessment summary copied.');
     setTimeout(() => setSaveStatus(''), 1800);
   };
@@ -847,6 +1126,55 @@ export function AssessmentTab() {
     });
   };
 
+  const appendQuickNote = (item: AssessmentItem, note: string) => {
+    const existingNotes = item.notes?.trim();
+    const notes = existingNotes ? `${existingNotes}; ${note}` : note;
+    updateItem(item.id, {
+      notes,
+      status: item.status === 'not_started' ? 'in_progress' : item.status
+    });
+  };
+
+  const addCustomAssessmentLine = async () => {
+    if (!activeAssessment) return;
+    const prompt = customLinePrompt.trim();
+    if (!prompt) {
+      alert('Add a prompt for the custom assessment line.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const sectionItems = currentSectionItems.length ? currentSectionItems : activeItems;
+    const maxSortOrder = sectionItems.reduce((max, item) => Math.max(max, item.sortOrder), sectionIndex * 100);
+    const firstSectionItem = currentSectionItems[0];
+    const customItem: AssessmentItem = {
+      id: createId(),
+      assessmentId: activeAssessment.id,
+      sectionKey: currentSectionKey,
+      sectionTitle: firstSectionItem?.sectionTitle || 'Custom Assessment Line',
+      prompt,
+      helperText: 'SLP-added line for this assessment. Use it for extra probes, student comments, or therapy-planning observations.',
+      scriptText: customLineScript.trim() || undefined,
+      listenFor: ['What changed?', 'What support helped?', 'Does this affect therapy planning?'],
+      kind: customLineKind,
+      status: 'not_started',
+      recordingIds: [],
+      analysisTags: ['custom line'],
+      sortOrder: maxSortOrder + 1,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    await db.assessmentItems.add(customItem);
+    await updateActiveAssessment({});
+    setItems(prev => [...prev, customItem]);
+    setCustomLinePrompt('');
+    setCustomLineScript('');
+    setCustomLineKind('speech_sample');
+    setSaveStatus('Custom line added.');
+    setTimeout(() => setSaveStatus(''), 1400);
+  };
+
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
     const secs = (seconds % 60).toString().padStart(2, '0');
@@ -858,10 +1186,35 @@ export function AssessmentTab() {
       <div className="space-y-5">
         <section className="bg-gradient-to-br from-cyan-500/20 via-slate-800 to-indigo-500/10 border border-cyan-400/20 p-5 rounded-3xl shadow-xl text-left space-y-3">
           <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-cyan-200">Start Assessment</p>
-          <h2 className="text-2xl font-black tracking-tight text-white">Teen diagnostic guide</h2>
+          <h2 className="text-2xl font-black tracking-tight text-white">Phone-in-hand SLP guide</h2>
           <p className="text-sm text-slate-300 leading-relaxed">
-            A line-by-line assessment companion for adolescents: consent, case history, screening, speech samples, sound probes, stimulability, listener check, and editable analysis.
+            Sit down with a student, pick what you need, record speech, tap checklist results, and leave with SLP-controlled analysis, therapy ideas, and home practice.
           </p>
+        </section>
+
+        <section className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-3">
+          <h3 className="font-extrabold text-base text-slate-100 flex items-center gap-2 border-b border-slate-700/60 pb-3">
+            <ClipboardList className="text-cyan-300" size={18} />
+            What are you doing right now?
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {QUICK_START_PRESETS.map(preset => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                className={`text-left p-4 rounded-2xl border min-h-[92px] transition ${FOCUS_CLASS} ${
+                  selectedTemplate === preset.template && timeBudgetMinutes === preset.minutes && primaryConcern === preset.concern
+                    ? 'bg-cyan-500/15 border-cyan-400/45 text-cyan-100'
+                    : 'bg-slate-900 border-slate-700 text-slate-300'
+                }`}
+              >
+                <span className="text-sm font-extrabold block">{preset.title}</span>
+                <span className="text-[11px] text-slate-400 block mt-1 leading-relaxed">{preset.subtitle}</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-cyan-300 block mt-2">{preset.minutes} min guide</span>
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
@@ -925,6 +1278,28 @@ export function AssessmentTab() {
 
           <div className="space-y-2 text-left">
             <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+              Time available
+            </span>
+            <div className="grid grid-cols-4 gap-2">
+              {[10, 20, 30, 45].map(minutes => (
+                <button
+                  key={minutes}
+                  type="button"
+                  onClick={() => setTimeBudgetMinutes(minutes)}
+                  className={`${BUTTON_CLASS} text-xs ${
+                    timeBudgetMinutes === minutes
+                      ? 'bg-cyan-500 text-slate-950'
+                      : 'bg-slate-900 border border-slate-700 text-slate-300'
+                  }`}
+                >
+                  {minutes} min
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2 text-left">
+            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
               Pick assessment path
             </span>
             <div className="grid grid-cols-1 gap-2">
@@ -932,10 +1307,7 @@ export function AssessmentTab() {
                 <button
                   key={template.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedTemplate(template.id);
-                    setPrimaryConcern(template.defaultConcern);
-                  }}
+                  onClick={() => selectAssessmentTemplate(template.id)}
                   className={`text-left p-4 rounded-2xl border transition min-h-[78px] ${FOCUS_CLASS} ${
                     selectedTemplate === template.id
                       ? 'bg-cyan-500/15 border-cyan-400/45 text-cyan-100'
@@ -948,6 +1320,46 @@ export function AssessmentTab() {
               ))}
             </div>
           </div>
+
+          <div className="space-y-2 text-left">
+            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+              Focus today
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {FOCUS_OPTIONS.map(option => {
+                const isSelected = focusTargets.includes(option.id);
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => toggleFocusTarget(option.id)}
+                    title={option.helper}
+                    className={`min-h-[42px] px-3 rounded-xl border text-[10px] font-bold transition ${FOCUS_CLASS} ${
+                      isSelected
+                        ? 'bg-indigo-500/20 border-indigo-400/45 text-indigo-100'
+                        : 'bg-slate-900 border-slate-700 text-slate-400'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              These chips tailor short assessments and appear in the editable analysis; the SLP can still add any line later.
+            </p>
+          </div>
+
+          <label className="block text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="assessment-custom-target">
+            Optional custom target
+          </label>
+          <input
+            id="assessment-custom-target"
+            value={customTarget}
+            onChange={event => setCustomTarget(event.target.value)}
+            placeholder="Example: vocalic /r/ in conversation, /th/, classroom presentation clarity"
+            className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 min-h-[48px] text-sm text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
+          />
 
           <label className="block text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="assessment-concern">
             Primary concern
@@ -1038,6 +1450,28 @@ export function AssessmentTab() {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-[0.9fr_1.1fr] gap-3">
+          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3 text-left">
+            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Today’s plan</span>
+            <p className="text-sm font-bold text-slate-100 mt-1">{timeBudgetMinutes || activeAssessment.timeBudgetMinutes || 'Open'} minute guide</p>
+            <p className="text-[11px] text-slate-400 leading-relaxed mt-1">{focusLabelSummary || 'SLP-selected focus'}</p>
+          </div>
+          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3 text-left space-y-2">
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="assessment-scratchpad">
+              SLP scratchpad / ideas
+            </label>
+            <textarea
+              id="assessment-scratchpad"
+              value={clinicianNotes}
+              onChange={event => setClinicianNotes(event.target.value)}
+              onBlur={saveClinicianNotes}
+              placeholder="Fast notes: history, observations, therapy ideas, parent questions, next probes..."
+              rows={3}
+              className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 placeholder-slate-600 select-text ${FOCUS_CLASS}`}
+            />
+          </div>
+        </div>
+
         <div className="flex gap-2 overflow-x-auto pb-1">
           {activeSectionKeys.map((sectionKey, index) => {
             const sectionItems = activeItems.filter(item => item.sectionKey === sectionKey);
@@ -1061,6 +1495,55 @@ export function AssessmentTab() {
           })}
         </div>
       </section>
+
+      {currentCoachItem && currentSectionKey !== 'summary' && (
+        <section className="bg-slate-800 border border-cyan-500/25 p-5 rounded-3xl shadow-xl text-left space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-cyan-200">Do this now</p>
+              <h3 className="text-lg font-black text-white mt-1">{currentCoachItem.sectionTitle}</h3>
+              <p className="text-xs text-slate-400 mt-1">{currentCoachItem.prompt}</p>
+            </div>
+            <span className="shrink-0 rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-[10px] font-extrabold uppercase text-slate-300">
+              Step {sectionIndex + 1}/{activeSectionKeys.length}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3">
+              <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">1. Say / ask</span>
+              <p className="text-sm text-slate-200 leading-relaxed mt-1">{currentCoachItem.scriptText || currentCoachItem.prompt}</p>
+            </div>
+            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3">
+              <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">2. Listen for</span>
+              <ul className="mt-1 space-y-1 text-xs text-slate-300">
+                {listenForItem(currentCoachItem).map(point => (
+                  <li key={point}>• {point}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3">
+              <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">3. Capture</span>
+              <p className="text-xs text-slate-300 leading-relaxed mt-1">Record if useful, tap the closest result, add one quick note, then move on.</p>
+              {isSpeechRecordable(currentCoachItem.kind) && (
+                <button
+                  type="button"
+                  onClick={recordingItemId === currentCoachItem.id ? stopRecording : () => startRecording(currentCoachItem)}
+                  disabled={!!recordingItemId && recordingItemId !== currentCoachItem.id}
+                  className={`${BUTTON_CLASS} mt-3 w-full text-xs flex items-center justify-center gap-2 ${
+                    recordingItemId === currentCoachItem.id
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                      : 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 disabled:opacity-50'
+                  }`}
+                >
+                  {recordingItemId === currentCoachItem.id ? <Square size={16} /> : <Mic size={16} />}
+                  {recordingItemId === currentCoachItem.id ? `Stop ${formatTime(recordingSeconds)}` : 'Record current line'}
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {currentSectionKey === 'summary' ? (
         <section className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
@@ -1096,7 +1579,18 @@ export function AssessmentTab() {
             rows={6}
             className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 leading-relaxed select-text ${FOCUS_CLASS}`}
           />
-          <div className="grid grid-cols-2 gap-2">
+          <label className="block text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="assessment-support-plan">
+            Therapy / home-practice starter
+          </label>
+          <textarea
+            id="assessment-support-plan"
+            value={supportPlanDraft}
+            onChange={event => setSupportPlanDraft(event.target.value)}
+            rows={7}
+            placeholder="Generate a draft, then edit into therapy ideas or caregiver-friendly practice."
+            className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 leading-relaxed placeholder-slate-600 select-text ${FOCUS_CLASS}`}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button
               type="button"
               onClick={copySummary}
@@ -1104,6 +1598,14 @@ export function AssessmentTab() {
             >
               <Copy size={16} />
               Copy
+            </button>
+            <button
+              type="button"
+              onClick={() => saveAssessmentSummary(false)}
+              className={`${BUTTON_CLASS} bg-slate-900 border border-slate-700 text-slate-200 flex items-center justify-center gap-2`}
+            >
+              <Save size={16} />
+              Save Draft
             </button>
             <button
               type="button"
@@ -1133,10 +1635,65 @@ export function AssessmentTab() {
               onCue={(cueLevel) => updateItem(item.id, { cueLevel, status: 'in_progress' })}
               onComplete={() => updateItem(item.id, { status: 'complete' })}
               onToggleTag={(tag) => toggleItemTag(item, tag)}
+              onAppendNote={(note) => appendQuickNote(item, note)}
               onRecord={() => startRecording(item)}
               onStop={stopRecording}
             />
           ))}
+          <section className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-3 text-left">
+            <h3 className="font-extrabold text-base text-slate-100 flex items-center gap-2 border-b border-slate-700/60 pb-3">
+              <UserPlus className="text-cyan-300" size={18} />
+              Add what you need
+            </h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              If the SLP hears something unexpected, add a custom probe, checklist item, student quote, or therapy-planning line without leaving the assessment.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-[0.8fr_1.2fr] gap-2">
+              <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="custom-line-kind">
+                Type
+                <select
+                  id="custom-line-kind"
+                  value={customLineKind}
+                  onChange={event => setCustomLineKind(event.target.value as AssessmentItemKind)}
+                  className={`mt-2 w-full min-h-[48px] bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 ${FOCUS_CLASS}`}
+                >
+                  <option value="speech_sample">Speech sample</option>
+                  <option value="sound_probe">Sound probe</option>
+                  <option value="stimulability">Cueing response</option>
+                  <option value="question">Question</option>
+                  <option value="checklist">Checklist</option>
+                  <option value="participation">Participation</option>
+                </select>
+              </label>
+              <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="custom-line-prompt">
+                Prompt / observation
+                <input
+                  id="custom-line-prompt"
+                  value={customLinePrompt}
+                  onChange={event => setCustomLinePrompt(event.target.value)}
+                  placeholder="Example: Probe /r/ in student’s own basketball vocabulary"
+                  className={`mt-2 w-full min-h-[48px] bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
+                />
+              </label>
+            </div>
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="custom-line-script">
+              Optional “say this” script
+            </label>
+            <input
+              id="custom-line-script"
+              value={customLineScript}
+              onChange={event => setCustomLineScript(event.target.value)}
+              placeholder="Add the exact clinician/student prompt if helpful"
+              className={`w-full min-h-[48px] bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
+            />
+            <button
+              type="button"
+              onClick={addCustomAssessmentLine}
+              className={`${BUTTON_CLASS} w-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-200`}
+            >
+              Add Custom Line
+            </button>
+          </section>
         </section>
       )}
 
@@ -1199,6 +1756,7 @@ function AssessmentItemCard({
   onCue,
   onComplete,
   onToggleTag,
+  onAppendNote,
   onRecord,
   onStop
 }: {
@@ -1210,11 +1768,14 @@ function AssessmentItemCard({
   onCue: (cueLevel: CueLevel) => void;
   onComplete: () => void;
   onToggleTag: (tag: string) => void;
+  onAppendNote: (note: string) => void;
   onRecord: () => void;
   onStop: () => void;
 }) {
   const options = resultOptionsForKind(item.kind);
   const tagOptions = tagOptionsForKind(item.kind);
+  const listenFor = listenForItem(item);
+  const quickNotes = quickNoteOptionsForItem(item);
 
   return (
     <div className={`bg-slate-800 border p-5 rounded-3xl shadow-xl space-y-4 text-left ${statusTone(item)}`}>
@@ -1238,6 +1799,17 @@ function AssessmentItemCard({
           <p className="text-sm text-cyan-50 leading-relaxed">{item.scriptText}</p>
         </div>
       )}
+
+      <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
+        <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-500 mb-2">Listen for</span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {listenFor.map(point => (
+            <span key={point} className="rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-[11px] text-slate-300 leading-snug">
+              {point}
+            </span>
+          ))}
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
         {options.map(option => (
@@ -1298,6 +1870,22 @@ function AssessmentItemCard({
           </div>
         </div>
       )}
+
+      <div className="space-y-2">
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">One-tap note ideas</span>
+        <div className="flex flex-wrap gap-2">
+          {quickNotes.map(note => (
+            <button
+              key={note}
+              type="button"
+              onClick={() => onAppendNote(note)}
+              className={`min-h-[40px] px-3 rounded-xl border text-[10px] font-bold bg-slate-900 border-slate-700 text-slate-400 transition ${FOCUS_CLASS}`}
+            >
+              + {note}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="grid gap-2">
         <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor={`assessment-notes-${item.id}`}>
