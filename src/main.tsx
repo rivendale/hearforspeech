@@ -8,3 +8,16 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Register Service Worker for PWA functionality under /hearforspeech/ base path
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/hearforspeech/sw.js', { scope: '/hearforspeech/' })
+      .then((registration) => {
+        console.log('ServiceWorker registered successfully with scope:', registration.scope);
+      })
+      .catch((error) => {
+        console.error('ServiceWorker registration failed:', error);
+      });
+  });
+}
