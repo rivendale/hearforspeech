@@ -19,19 +19,7 @@ import { VisualizerTab } from './tabs/VisualizerTab';
 import { TrackerTab } from './tabs/TrackerTab';
 import { ProtocolTab } from './tabs/ProtocolTab';
 import { ExportTab } from './tabs/ExportTab';
-
-interface AIAssistant {
-  capabilities: () => Promise<{ available: 'yes' | 'no' | 'readily' }>;
-  create: (options?: { systemPrompt?: string }) => Promise<{
-    prompt: (text: string) => Promise<string>;
-  }>;
-}
-
-interface WindowWithAI extends Window {
-  ai?: {
-    assistant: AIAssistant;
-  };
-}
+import { detectBuiltInAI, getPlatformInfo, type BuiltInAIStatus } from './utils/builtInAI';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -87,6 +75,7 @@ export default function App() {
     return mobileCheck && iosCheck && !isStandalone;
   });
   const [showCalibrationModal, setShowCalibrationModal] = useState(false);
+  const [aiCapability, setAiCapability] = useState<BuiltInAIStatus | null>(null);
   const [isIOS] = useState(() => {
     if (typeof navigator === 'undefined') return false;
     const userAgent = navigator.userAgent || navigator.vendor || (window as Window & { opera?: string }).opera || '';
@@ -509,27 +498,12 @@ export default function App() {
 
     window.addEventListener('beforeinstallprompt', handleInstallPrompt);
 
-    // Check for native local Gemini Nano model
+    // Check for optional browser built-in AI. The app remains fully usable without it.
     const detectAI = async () => {
-      const globalWindow = window as unknown as WindowWithAI;
-      if (globalWindow.ai && globalWindow.ai.assistant) {
-        try {
-          const cap = await globalWindow.ai.assistant.capabilities();
-          if (cap.available !== 'no') {
-            setHasLocalAI(true);
-            setAiStatus(`Local Gemini Nano Available (${cap.available.toUpperCase()})`);
-          } else {
-            setHasLocalAI(false);
-            setAiStatus("Local Gemini Nano requires initialization.");
-          }
-        } catch {
-          setHasLocalAI(false);
-          setAiStatus("Capability check failed. Using clinical rules-engine.");
-        }
-      } else {
-        setHasLocalAI(false);
-        setAiStatus("Browser Prompt API absent. Using clinical rules-engine.");
-      }
+      const status = await detectBuiltInAI();
+      setAiCapability(status);
+      setHasLocalAI(status.available);
+      setAiStatus(status.message);
     };
     detectAI();
 
@@ -687,7 +661,7 @@ export default function App() {
           }`}
         >
           <Cpu size={12} className={hasLocalAI ? "" : "animate-pulse"} />
-          <span>{hasLocalAI ? "AI Active" : "AI Simulation"}</span>
+          <span>{hasLocalAI ? "AI Active" : "Guided Tools"}</span>
         </button>
       </header>
 
@@ -822,7 +796,7 @@ export default function App() {
             <div className="flex justify-between items-start border-b border-slate-700 pb-3">
               <div className="flex items-center gap-2">
                 <Brain className="text-indigo-400" size={20} />
-                <h3 className="font-extrabold text-base text-slate-100 tracking-tight">AI Calibration Status</h3>
+                <h3 className="font-extrabold text-base text-slate-100 tracking-tight">Local Capability Status</h3>
               </div>
               <button 
                 onClick={() => setShowCalibrationModal(false)}
@@ -834,44 +808,51 @@ export default function App() {
 
             {/* Diagnostic items */}
             <div className="space-y-3">
-              <CalibrationItem label="Browser Engine Check" status={true} desc="Chromium-based browser detected." />
+              <CalibrationItem label="Browser Engine Check" status={getPlatformInfo().isChromium} desc={getPlatformInfo().isChromium ? "Chromium-based browser detected." : "Non-Chromium browser detected; guided workflows still work."} />
               <CalibrationItem label="WebGPU Capabilities" status={true} desc="Hardware acceleration available." />
-              <CalibrationItem label="Built-in AI API Status" status={hasLocalAI} desc={hasLocalAI ? "window.ai API detected and active." : "window.ai API not found. Simulation fallback active."} />
+              <CalibrationItem label="Built-in AI API Status" status={hasLocalAI} desc={aiCapability?.message || "Detecting browser built-in AI support..."} />
             </div>
 
             {/* Explainer */}
             {!hasLocalAI && (
               <div className="bg-slate-900 border border-slate-750 p-4 rounded-2xl text-[11px] text-slate-450 space-y-2 leading-relaxed font-normal text-left">
-                <span className="font-bold text-slate-350 block uppercase">Enable Native Gemini Nano:</span>
-                <p>To run speech analysis 100% locally on your Google Pixel or desktop Chrome, configure the following browser settings:</p>
-                <div className="space-y-2 pt-1">
-                  <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-xl">
-                    <span className="font-mono text-[9px] text-slate-350 select-all truncate">chrome://flags/#optimization-guide-on-device-model</span>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText("chrome://flags/#optimization-guide-on-device-model");
-                        alert("Flag URL copied!");
-                      }}
-                      className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg"
-                    >
-                      Copy
-                    </button>
+                <span className="font-bold text-slate-350 block uppercase">{aiCapability?.setupTitle || 'Built-in AI Support'}</span>
+                <p>{aiCapability?.message || 'The app is checking whether browser built-in AI is available.'}</p>
+                <ol className="list-decimal list-inside space-y-1.5 pt-1">
+                  {(aiCapability?.setupSteps || []).map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+                {aiCapability?.canTryDesktopFlags && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-xl">
+                      <span className="font-mono text-[9px] text-slate-350 select-all truncate">chrome://flags/#optimization-guide-on-device-model</span>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText("chrome://flags/#optimization-guide-on-device-model");
+                          alert("Flag URL copied!");
+                        }}
+                        className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-xl">
+                      <span className="font-mono text-[9px] text-slate-350 select-all truncate">chrome://flags/#prompt-api-for-gemini-nano</span>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText("chrome://flags/#prompt-api-for-gemini-nano");
+                          alert("Flag URL copied!");
+                        }}
+                        className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg"
+                      >
+                        Copy
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-xl">
-                    <span className="font-mono text-[9px] text-slate-350 select-all truncate">chrome://flags/#prompt-api-for-gemini-nano</span>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText("chrome://flags/#prompt-api-for-gemini-nano");
-                        alert("Flag URL copied!");
-                      }}
-                      className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
+                )}
                 <p className="text-[10px] text-slate-500 italic">
-                  Note: Enabling flags unlocks native GPU/NPU models. Local prompts are designed to stay on this device.
+                  No cloud AI is required. Assessment Coach, recordings, checklists, notes, and exports continue to work local-first.
                 </p>
               </div>
             )}

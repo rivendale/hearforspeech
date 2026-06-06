@@ -1,19 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Brain, Sparkles, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
-
-interface AIAssistant {
-  capabilities: () => Promise<{ available: 'yes' | 'no' | 'readily' }>;
-  create: (options?: { systemPrompt?: string }) => Promise<{
-    prompt: (text: string) => Promise<string>;
-  }>;
-}
-
-interface WindowWithAI extends Window {
-  ai?: {
-    assistant: AIAssistant;
-  };
-}
+import { createBuiltInAISession, getBuiltInAIPlainLanguageGuidance } from '../utils/builtInAI';
 
 interface ChatMessage {
   sender: 'user' | 'bot';
@@ -25,7 +13,7 @@ export function ClinicalAICopilot() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       sender: 'bot',
-      text: "Hi! I am your local-first Clinical AI Assistant. How can I help you support adolescent self-advocacy, calibrate target phonemes, or troubleshoot PWA settings?"
+      text: "Hi! I am your local-first clinical helper. I can support adolescent assessment flow, /r/ probes, cueing ideas, or Pixel/browser setup questions without needing cloud AI."
     }
   ]);
   const [inputVal, setInputVal] = useState('');
@@ -41,16 +29,18 @@ export function ClinicalAICopilot() {
   }, [messages, isOpen]);
 
   const generateLocalResponse = async (query: string): Promise<string> => {
-    const globalWindow = window as unknown as WindowWithAI;
-    if (globalWindow.ai && globalWindow.ai.assistant && hasLocalAI) {
+    if (hasLocalAI) {
       try {
-        const assistant = await globalWindow.ai.assistant.create({
-          systemPrompt: `You are a helpful, senior clinical AI assistant for Speech-Language Pathologists (SLPs) and parents working with adolescents (14-15 years old) on speech intelligibility. Your tone is professional, technical, and supportive. Use the AVT Clinical Cheat Sheet guidelines (e.g. Hardware Glitch analogy, collaborative intake boundaries, PCC metrics, and phonetic biofeedback). Limit answers to 3 concise bullet points or 1 short paragraph.`
-        });
-        const response = await assistant.prompt(query);
-        return response;
+        const assistant = await createBuiltInAISession(
+          `You are a helpful, senior clinical assistant for Speech-Language Pathologists (SLPs) and parents working with adolescents (14-15 years old) on speech intelligibility. Your tone is professional, technical, and supportive. Limit answers to 3 concise bullet points or 1 short paragraph. Do not diagnose or replace clinical judgment.`
+        );
+        if (assistant) {
+          const response = await assistant.prompt(query);
+          assistant.destroy?.();
+          return response;
+        }
       } catch (err) {
-        console.error("Gemini Nano chat prompt failed, triggering fallback...", err);
+        console.error("Browser built-in model prompt failed, triggering fallback...", err);
       }
     }
 
@@ -70,7 +60,11 @@ export function ClinicalAICopilot() {
     }
 
     if (q.includes('pwa') || q.includes('install') || q.includes('flag')) {
-      return "PWA Setup Troubleshooting:\n1. Navigate to chrome://flags/#optimization-guide-on-device-model and select Enabled BypassPrefRequirement.\n2. Navigate to chrome://flags/#prompt-api-for-gemini-nano and select Enabled.\n3. Relaunch Chrome. Tap Safari's 'Share' > 'Add to Home Screen' on iOS, or 'Install App' banner on Android Chrome.";
+      return `PWA / Pixel Setup:\n${getBuiltInAIPlainLanguageGuidance()}\n\nThe practical path for therapists is to use the Assess tab: it walks line-by-line, records voice samples, tags errors/cues, and drafts an editable summary without requiring browser AI.`;
+    }
+
+    if (q.includes('assessment') || q.includes('diagnostic') || q.includes('evaluate')) {
+      return "Assessment Coach Flow:\n1. Start in Assess and choose a teen template (/r/, intelligibility, connected speech, or school participation).\n2. Follow each “Say this” card, record samples, and tap result/cue buttons.\n3. Generate the editable summary; the SLP reviews recordings and finalizes diagnostic interpretation.";
     }
 
     if (q.includes('iep') || q.includes('goal') || q.includes('smart')) {
@@ -81,7 +75,7 @@ export function ClinicalAICopilot() {
       return "Background Noise Practice: Use the background noise tool in the Biofeedback tab. SLPs can scale ambient room-noise levels to practice speech clarity under realistic classroom distractions.";
     }
 
-    return "I am here to assist with clinical articulation metrics, phoneme visual visualizers, and PWA setup. Try asking:\n- 'How do I teach /r/ coarticulation?'\n- 'Explain the Hardware Glitch analogy'\n- 'How do I configure Chrome Gemini Nano flags?'";
+    return "I can help with assessment flow, clinical articulation metrics, phoneme visualizers, and PWA setup. Try asking:\n- 'Walk me through a 14-year-old /r/ assessment'\n- 'Explain the Hardware Glitch analogy'\n- 'Can my Pixel use browser built-in AI?'";
   };
 
   const handleSend = async (textToSend: string) => {
@@ -112,7 +106,7 @@ export function ClinicalAICopilot() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="fixed bottom-24 right-4 z-40 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-650 hover:to-purple-700 text-white rounded-full p-3.5 shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-300 min-h-[48px] min-w-[48px]"
-        title="Open Clinical AI Copilot"
+        title="Open Clinical Helper"
       >
         <Sparkles size={20} className={isOpen ? "rotate-45 transition-transform" : ""} />
         <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
@@ -129,9 +123,9 @@ export function ClinicalAICopilot() {
             <div className="flex items-center gap-2">
               <Brain size={18} className="text-indigo-400" />
               <div>
-                <h4 className="font-extrabold text-xs text-slate-100 uppercase tracking-wider">Clinical AI Copilot</h4>
+                <h4 className="font-extrabold text-xs text-slate-100 uppercase tracking-wider">Clinical Helper</h4>
                 <span className="text-[9px] text-slate-400 font-bold block text-left">
-                  {hasLocalAI ? "Active: Local Gemini Nano" : "Simulation Fallback Engine"}
+                  {hasLocalAI ? "Browser built-in AI available" : "Local rules + guided workflows"}
                 </span>
               </div>
             </div>
@@ -184,10 +178,10 @@ export function ClinicalAICopilot() {
               Glitch Analogy
             </button>
             <button 
-              onClick={() => handleSuggestionClick("How do I configure Chrome flags?")}
+              onClick={() => handleSuggestionClick("Can my Pixel use browser built-in AI?")}
               className="text-[9px] font-bold bg-slate-800 border border-slate-750 text-indigo-400 hover:bg-slate-750 px-2.5 py-1.5 rounded-xl whitespace-nowrap transition"
             >
-              PWA AI flags
+              Pixel AI support
             </button>
           </div>
 

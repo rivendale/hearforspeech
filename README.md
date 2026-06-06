@@ -66,7 +66,14 @@ Both values appear in generated session notes so the clinician can describe perf
 
 Use the **Assess** tab when the SLP needs a diagnostic-style walkthrough for an adolescent student, not just a single test score.
 
-The built-in adolescent speech clarity/intelligibility guide walks line-by-line through:
+The built-in Assessment Coach offers several teen-focused paths:
+
+- **Teen Speech Clarity Screen** for a broad adolescent speech/intelligibility walkthrough
+- **/r/ Diagnostic Deep Dive** for prevocalic, vocalic, blend, sentence, and stimulability probes
+- **Connected Speech + Intelligibility** for natural samples, listener burden, repair strategies, and participation impact
+- **School Participation Interview** for student voice, caregiver/teacher input, classroom tasks, and self-advocacy supports
+
+The guides walk line-by-line through:
 
 1. Consent and student orientation
 2. Quick case history
@@ -81,15 +88,16 @@ The built-in adolescent speech clarity/intelligibility guide walks line-by-line 
 Each assessment line includes:
 
 - The exact SLP prompt
-- Teen-friendly helper wording
+- Teen-friendly “Say this” script wording
 - Result buttons such as clear, distorted, substituted, omitted, concern, monitor, or improved with cue
 - Optional cue-level tagging
+- Quick analysis tags for word position, speech context, participation, cue response, and self-monitoring
 - SLP notes
 - A one-tap recording control linked to that assessment item
 
 Assessment audio is saved locally through the same recording storage used elsewhere in the app. If local security is enabled, recordings are encrypted using the existing local master key flow.
 
-The generated assessment summary is editable and conservative. It summarizes checklist entries, recordings, sound probes, cueing/stimulability, and functional observation flags. The SLP remains responsible for reviewing recordings, selecting formal measures when required, interpreting findings, and writing final diagnostic conclusions.
+The generated assessment summary is editable and conservative. It summarizes checklist entries, recordings, sound probes by sound/word position, cueing/stimulability, functional participation contexts, and “Consider...” follow-up flags. The SLP remains responsible for reviewing recordings, selecting formal measures when required, interpreting findings, and writing final diagnostic conclusions.
 
 ### Session Notes
 After ending a session, Hear for Speech generates editable drafts in two formats:
@@ -188,9 +196,13 @@ Before sharing an export, confirm that the recipient, storage location, and tran
 
 ---
 
-## Optional Local Browser Assistant
+## Optional Browser Built-In AI
 
-The existing optional browser-native assistant uses supported local browser APIs when available and falls back to local rule-based text. The guided session workflow does not depend on it and does not add external AI services.
+The optional browser-native assistant uses supported local browser APIs when available and falls back to local rule-based text. The guided session and assessment workflows do not depend on built-in AI and do not add external AI services.
+
+On Google Pixel / Android Chrome and iOS browsers, Chrome’s built-in Gemini Nano / Prompt API is not currently exposed to web apps. If Chrome says the related flags are “not available on your platform,” there is no app-side switch that can force them on. Hear for Speech still works local-first with guided assessment, recording, checklists, Listener Check, summaries, and exports.
+
+On supported desktop Chrome/Chromebook builds, the app can detect newer `LanguageModel` support or legacy `window.ai` support when the browser exposes it.
 
 ---
 
