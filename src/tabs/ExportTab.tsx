@@ -13,7 +13,7 @@ interface ExportTabProps {
 
 export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [stats, setStats] = useState({ logsCount: 0, recordingsCount: 0 });
+  const [stats, setStats] = useState({ logsCount: 0, recordingsCount: 0, clientsCount: 0, guidedSessionsCount: 0 });
   const [clipboardInput, setClipboardInput] = useState('');
   const [importMode, setImportMode] = useState<'merge' | 'overwrite'>('merge');
   const [isCopied, setIsCopied] = useState(false);
@@ -40,9 +40,13 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
   const { masterKey, isSecurityEnabled } = useStore();
 
   const loadStats = async () => {
-    const logsCount = await db.logs.count();
-    const recordingsCount = await db.recordings.count();
-    setStats({ logsCount, recordingsCount });
+    const [logsCount, recordingsCount, clientsCount, guidedSessionsCount] = await Promise.all([
+      db.logs.count(),
+      db.recordings.count(),
+      db.clients.count(),
+      db.guidedSessions.count()
+    ]);
+    setStats({ logsCount, recordingsCount, clientsCount, guidedSessionsCount });
   };
 
   const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -56,10 +60,14 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
 
   useEffect(() => {
     let active = true;
-    db.logs.count().then(async (logsCount) => {
-      const recordingsCount = await db.recordings.count();
+    Promise.all([
+      db.logs.count(),
+      db.recordings.count(),
+      db.clients.count(),
+      db.guidedSessions.count()
+    ]).then(([logsCount, recordingsCount, clientsCount, guidedSessionsCount]) => {
       if (active) {
-        setStats({ logsCount, recordingsCount });
+        setStats({ logsCount, recordingsCount, clientsCount, guidedSessionsCount });
       }
     }).catch(console.error);
     return () => {
@@ -68,7 +76,15 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
   }, []);
 
   const getSerializedPayload = async (format: 'full' | 'logs-only' = 'full') => {
-    let logs = await db.logs.toArray();
+    const [storedLogs, clients, goals, guidedSessions, trials, listenerChecks] = await Promise.all([
+      db.logs.toArray(),
+      db.clients.toArray(),
+      db.goals.toArray(),
+      db.guidedSessions.toArray(),
+      db.trials.toArray(),
+      db.listenerChecks.toArray()
+    ]);
+    let logs = storedLogs;
     let serializedRecordings: BackupPayload['data']['recordings'] = [];
 
     // Decrypt data before exporting so the backup JSON is standard and cross-device compatible
@@ -103,6 +119,11 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
       exportedAt: new Date().toISOString(),
       data: {
         logs,
+        clients,
+        goals,
+        guidedSessions,
+        trials,
+        listenerChecks,
         recordings: serializedRecordings
       }
     };
@@ -140,8 +161,8 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: 'HearForSpeech Data Exchange',
-          text: `Speech evaluation logs ${exportFormat === 'logs-only' ? '(text only)' : '(full with voice prints)'}`
+          title: 'HearForSpeech Data Export',
+          text: `Speech session data ${exportFormat === 'logs-only' ? '(text only)' : '(full with recordings)'}`
         });
       } else {
         alert("Native file sharing is not supported by your browser/device.");
@@ -230,7 +251,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
       throw new Error("Incorrect application backup format.");
     }
 
-    const { logs, recordings } = parsed.data;
+    const { logs, recordings, clients, goals, guidedSessions, trials, listenerChecks } = parsed.data;
     if (!Array.isArray(logs)) {
       throw new Error("Corrupted logs structure.");
     }
@@ -248,9 +269,14 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
       );
       if (!proceed) return;
 
-      await db.transaction('rw', [db.logs, db.recordings], async () => {
+      await db.transaction('rw', [db.logs, db.recordings, db.clients, db.goals, db.guidedSessions, db.trials, db.listenerChecks], async () => {
         await db.logs.clear();
         await db.recordings.clear();
+        await db.clients.clear();
+        await db.goals.clear();
+        await db.guidedSessions.clear();
+        await db.trials.clear();
+        await db.listenerChecks.clear();
 
         for (const log of logs) {
           const logRecord: SessionLog = {
@@ -282,10 +308,16 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
             await db.recordings.add(finalRec);
           }
         }
+
+        if (Array.isArray(clients)) await db.clients.bulkPut(clients);
+        if (Array.isArray(goals)) await db.goals.bulkPut(goals);
+        if (Array.isArray(guidedSessions)) await db.guidedSessions.bulkPut(guidedSessions.map(session => ({ ...session, sessionLogId: undefined })));
+        if (Array.isArray(trials)) await db.trials.bulkPut(trials);
+        if (Array.isArray(listenerChecks)) await db.listenerChecks.bulkPut(listenerChecks);
       });
     } else {
       // Merge logs & recordings (avoid duplicates by checking date/name)
-      await db.transaction('rw', [db.logs, db.recordings], async () => {
+      await db.transaction('rw', [db.logs, db.recordings, db.clients, db.goals, db.guidedSessions, db.trials, db.listenerChecks], async () => {
         // Read decrypted/plaintext properties to check uniqueness
         let currentLogs = await db.logs.toArray();
         if (masterKey) {
@@ -331,6 +363,12 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
             }
           }
         }
+
+        if (Array.isArray(clients)) await db.clients.bulkPut(clients);
+        if (Array.isArray(goals)) await db.goals.bulkPut(goals);
+        if (Array.isArray(guidedSessions)) await db.guidedSessions.bulkPut(guidedSessions.map(session => ({ ...session, sessionLogId: undefined })));
+        if (Array.isArray(trials)) await db.trials.bulkPut(trials);
+        if (Array.isArray(listenerChecks)) await db.listenerChecks.bulkPut(listenerChecks);
       });
     }
 
@@ -394,13 +432,18 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
   };
 
   const handleClearDatabase = async () => {
-    const confirm1 = confirm("DANGER: This will permanently delete ALL session metrics and recordings. Continue?");
+    const confirm1 = confirm("DANGER: This will permanently delete ALL clients, goals, guided sessions, session metrics, listener checks, trials, and recordings stored on this device. Continue?");
     if (!confirm1) return;
     const confirm2 = confirm("Are you absolutely sure? This cannot be undone.");
     if (!confirm2) return;
 
     await db.logs.clear();
     await db.recordings.clear();
+    await db.clients.clear();
+    await db.goals.clear();
+    await db.guidedSessions.clear();
+    await db.trials.clear();
+    await db.listenerChecks.clear();
     alert("Local database wiped.");
     loadStats();
   };
@@ -554,25 +597,38 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
         </div>
       </div>
 
-      {/* 2. Patient-Mediated Exchange Stats */}
+      {/* 2. Patient-Mediated Export Stats */}
       <div className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-4">
         <h3 className="font-extrabold text-base text-slate-100 tracking-tight flex items-center gap-2 border-b border-slate-700/50 pb-2 text-left">
           <Activity size={18} className="text-emerald-400" />
-          <span>Database Exchange Diagnostics</span>
+          <span>Local Data Export Diagnostics</span>
         </h3>
 
         <p className="text-[11px] text-slate-400 leading-relaxed font-normal text-left">
-          Consistent with our strict privacy protocol, no database values or voice prints leave this device. 
-          Use this panel to export, merge, or transition your clinical logs.
+          HearForSpeech is local-first and designed to minimize cloud exposure. Use this panel to export, merge, or transition clinical records only when you have permission to do so.
         </p>
 
-        <div className="grid grid-cols-2 gap-3 bg-slate-900/50 p-4 rounded-2xl border border-slate-800/80">
+        <div className="bg-amber-500/10 border border-amber-500/25 p-3 rounded-2xl text-left">
+          <p className="text-[11px] text-amber-200 leading-relaxed">
+            Export warning: backup files, QR handoffs, and clipboard text may contain protected or sensitive information. Store and share exports according to your organization’s consent, retention, backup, HIPAA, and FERPA policies.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2 bg-slate-900/50 p-4 rounded-2xl border border-slate-800/80">
           <div className="text-center">
-            <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase block">Logs</span>
+            <span className="text-[9px] font-bold text-slate-500 tracking-wider uppercase block">Clients</span>
+            <span className="text-xl font-bold text-slate-200 mt-1 block">{stats.clientsCount}</span>
+          </div>
+          <div className="text-center border-l border-slate-800">
+            <span className="text-[9px] font-bold text-slate-500 tracking-wider uppercase block">Guided</span>
+            <span className="text-xl font-bold text-slate-200 mt-1 block">{stats.guidedSessionsCount}</span>
+          </div>
+          <div className="text-center">
+            <span className="text-[9px] font-bold text-slate-500 tracking-wider uppercase block">Logs</span>
             <span className="text-xl font-bold text-slate-200 mt-1 block">{stats.logsCount}</span>
           </div>
           <div className="text-center border-l border-slate-800">
-            <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase block">Recordings</span>
+            <span className="text-[9px] font-bold text-slate-500 tracking-wider uppercase block">Audio</span>
             <span className="text-xl font-bold text-slate-200 mt-1 block">{stats.recordingsCount}</span>
           </div>
         </div>
@@ -743,7 +799,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
           className="w-full flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/20 hover:border-rose-500/40 text-rose-400 font-semibold py-3.5 rounded-2xl text-xs transition min-h-[44px] uppercase tracking-wider"
         >
           <AlertCircle size={15} />
-          <span>Reset Local Database</span>
+            <span>Reset Local Data</span>
         </button>
       </div>
 

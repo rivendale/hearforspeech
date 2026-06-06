@@ -109,7 +109,7 @@ export function ProgressChart({ logs }: ProgressChartProps) {
             );
           })()}
 
-          {/* Draw Naïve Listener Path (only for logs with naiveListenerScore) */}
+          {/* Draw Listener Check Path (only for logs with naiveListenerScore) */}
           {(() => {
             const naivePoints = points
               .map((log, idx) => ({
@@ -172,7 +172,7 @@ export function ProgressChart({ logs }: ProgressChartProps) {
         </div>
         <div className="flex items-center gap-1.5 text-emerald-400">
           <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block border border-slate-800" />
-          <span>Naïve Intelligibility</span>
+          <span>Listener Check</span>
         </div>
       </div>
     </div>

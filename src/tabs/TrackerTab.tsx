@@ -78,7 +78,7 @@ export function TrackerTab() {
     return enabled ? parseInt(localStorage.getItem('hfs_noise_level') || '30') : 0;
   });
 
-  // Naïve Listener states
+  // Listener Check states
   const [isAssessmentMode, setIsAssessmentMode] = useState(false);
   const [currentSentenceIdx, setCurrentSentenceIdx] = useState(0);
   const [unclearIndices, setUnclearIndices] = useState<number[]>([]);
@@ -184,7 +184,7 @@ export function TrackerTab() {
           <div className="flex justify-between items-center border-b border-slate-700/50 pb-3">
             <h3 className="font-extrabold text-base text-slate-100 tracking-tight flex items-center gap-2">
               <Activity size={18} className="text-pink-400" />
-              <span>Naïve Listener Assessment</span>
+              <span>Listener Check</span>
             </h3>
             <button
               type="button"
@@ -196,7 +196,7 @@ export function TrackerTab() {
           </div>
 
           <div className="bg-indigo-600/10 border border-indigo-500/15 p-4 rounded-2xl text-[11px] text-indigo-300 leading-relaxed font-normal text-left">
-            <strong>Instructions for Listener:</strong> Pass this device to a colleague, another parent, or any unfamiliar adult. 
+            <strong>Instructions for Listener:</strong> Pass this device to a colleague, another caregiver, or any unfamiliar adult. 
             Listen to the student read the sentence below aloud. Tap any word you could not understand to mark it red. 
             By default, all words are understood.
           </div>
@@ -212,7 +212,7 @@ export function TrackerTab() {
           {/* Word interactive grid */}
           <div className="space-y-2 text-left">
             <span className="block text-[10px] font-extrabold text-slate-500 tracking-wider uppercase">
-              Interactive Word Intelligibility Matrix:
+              Listener scoring:
             </span>
             <div className="flex flex-wrap gap-2 pt-1 justify-center">
               {words.map((word, idx) => {
@@ -278,9 +278,9 @@ export function TrackerTab() {
                 date: dateStr,
                 rating: calcRating,
                 pcc: scorePercent,
-                environment: "Naïve Listener Assessment",
+                environment: "Listener Check",
                 repairStrategies: [],
-                notes: `[Naïve Listener Assessment] Sentence: "${sentence}". Understood ${clearCount}/${totalWords} words.`,
+                notes: `[Listener Check] Sentence: "${sentence}". Understood ${clearCount}/${totalWords} words.`,
                 environmentalDifficulty: envDifficulty,
                 environmentalNoiseLevel: envDifficulty,
                 naiveListenerScore: scorePercent
@@ -289,7 +289,7 @@ export function TrackerTab() {
               const finalLog = masterKey ? await encryptSessionLog(newLog, masterKey) : newLog;
               await db.logs.add(finalLog);
 
-              alert(`Assessment committed successfully! Score: ${scorePercent}%`);
+              alert(`Listener Check saved successfully! Score: ${scorePercent}%`);
               setIsAssessmentMode(false);
               loadLogs();
             }}
@@ -303,9 +303,9 @@ export function TrackerTab() {
           {/* Assessment Mode Toggle Header Card */}
           <div className="bg-slate-800 border border-slate-700/80 p-4.5 rounded-3xl shadow-xl flex items-center justify-between">
             <div className="text-left">
-              <span className="text-xs font-extrabold text-slate-200 block">Assessment Mode Switch</span>
+              <span className="text-xs font-extrabold text-slate-200 block">Listener Check Mode</span>
               <span className="text-[10px] text-slate-400 block mt-0.5 font-normal">
-                Toggle for passwordless Naïve Listener assessment.
+                Opens a simple listener-facing screen without private clinical notes.
               </span>
             </div>
             <button
@@ -317,7 +317,7 @@ export function TrackerTab() {
               }}
               className="bg-indigo-600 hover:bg-indigo-600 text-white font-bold px-4 py-2 rounded-xl text-[10px] uppercase tracking-wider transition active:scale-95 min-h-[36px]"
             >
-              Start Naïve Assessment
+              Start Listener Check
             </button>
           </div>
 
@@ -325,13 +325,13 @@ export function TrackerTab() {
           <form onSubmit={handleSave} className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-5">
             <h3 className="font-extrabold text-base text-slate-100 tracking-tight border-b border-slate-700/50 pb-3 flex items-center gap-2">
               <Activity size={18} className="text-indigo-400" />
-              <span>Performance Analytics Input</span>
+              <span>Session Data Input</span>
             </h3>
 
             {/* Rating Select */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-400 tracking-widest uppercase text-left">
-                Articulation Clarity Index (1-5):
+                Clinical Rating (1-5):
               </label>
               <div className="flex justify-between gap-2 pt-1">
                 {[1, 2, 3, 4, 5].map((num) => {
@@ -381,7 +381,7 @@ export function TrackerTab() {
             {/* Environment Selector */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-400 tracking-widest uppercase text-left">
-                Acoustic Environment Profile:
+                Practice Environment:
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {CLINICAL_ENVIRONMENTS.map((env) => {
@@ -408,7 +408,7 @@ export function TrackerTab() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label className="block text-xs font-bold text-slate-400 tracking-widest uppercase">
-                  Environmental Noise Stress:
+                  Background Noise Practice:
                 </label>
                 <span className="text-sm font-extrabold text-pink-400 font-mono bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-lg">
                   {envDifficulty}%
@@ -427,7 +427,7 @@ export function TrackerTab() {
             {/* Repair Protocols Checklist */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-400 tracking-widest uppercase text-left">
-                Communication Repair Protocols Deployed:
+                Strategies Used:
               </label>
               <div className="space-y-1.5">
                 {REPAIR_PROTOCOLS.map((strategy) => {
@@ -468,7 +468,7 @@ export function TrackerTab() {
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Log phonetic distortions, voicing errors, or therapeutic strategies..."
+                placeholder="Log observations, cueing, strategies, or next-step considerations..."
                 rows={3}
                 className="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 focus:outline-none p-3 rounded-2xl text-sm text-slate-200 placeholder-slate-600 transition-all text-left"
               />
@@ -478,11 +478,11 @@ export function TrackerTab() {
               type="submit" 
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-indigo-600/10 transition-all duration-300 min-h-[48px] uppercase tracking-wider text-xs"
             >
-              Commit Session Analytics
+              Save Session Note
             </button>
             
             <p className="text-[9px] text-slate-500 text-center uppercase tracking-wider font-semibold">
-              Zero-Cloud Protocol Active: Data is stored local-first on this device.
+              Local-first storage active: data is stored on this device.
             </p>
           </form>
         </>
@@ -494,7 +494,7 @@ export function TrackerTab() {
       {/* Log Feed */}
       <div className="space-y-3">
         <h3 className="font-bold text-sm text-slate-400 tracking-widest uppercase flex items-center gap-2">
-          <span>Analytics Database</span>
+          <span>Data Log</span>
           <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
             {logs.length}
           </span>
@@ -503,7 +503,7 @@ export function TrackerTab() {
         {logs.length === 0 ? (
           <div className="bg-slate-855/40 border border-dashed border-slate-800 p-8 rounded-2xl text-center">
             <BarChart3 className="mx-auto text-slate-600 mb-2" size={32} />
-            <p className="text-sm text-slate-500">No session metrics catalogued.</p>
+            <p className="text-sm text-slate-500">No session data saved yet.</p>
           </div>
         ) : (
           <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
@@ -547,7 +547,7 @@ export function TrackerTab() {
                   {/* Deployed strategies bullets */}
                   {log.repairStrategies && log.repairStrategies.length > 0 && (
                     <div className="space-y-1 bg-slate-900/30 p-2.5 rounded-xl border border-slate-850">
-                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Repair Protocols:</span>
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Strategies Used:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {log.repairStrategies.map((strat) => (
                           <span key={strat} className="text-[9px] font-semibold bg-purple-950/40 border border-purple-900/50 text-purple-400 px-2 py-0.5 rounded-md">
