@@ -26,7 +26,14 @@ import {
   type Recording
 } from '../db/database';
 import { useStore } from '../store/useStore';
-import { encryptRecording } from '../utils/crypto';
+import {
+  formatAdvancedAnalysisForNotes,
+  getAnalysisApiKey,
+  getDefaultAnalysisApiUrl,
+  submitAdvancedAnalysis,
+  type AdvancedAnalysisResult
+} from '../utils/advancedAnalysis';
+import { decryptRecording, encryptRecording } from '../utils/crypto';
 import { PrintableHandout } from '../components/PrintableHandout';
 
 type TemplateItem = Omit<AssessmentItem, 'id' | 'assessmentId' | 'status' | 'createdAt' | 'updatedAt' | 'recordingIds'>;
@@ -1076,6 +1083,10 @@ export function AssessmentTab() {
   const [customLinePrompt, setCustomLinePrompt] = useState('');
   const [customLineScript, setCustomLineScript] = useState('');
   const [customLineKind, setCustomLineKind] = useState<AssessmentItemKind>('speech_sample');
+  const [analysisApiUrl, setAnalysisApiUrl] = useState(getDefaultAnalysisApiUrl);
+  const [analysisStatusByItem, setAnalysisStatusByItem] = useState<Record<string, 'idle' | 'running' | 'complete' | 'error'>>({});
+  const [analysisResultsByItem, setAnalysisResultsByItem] = useState<Record<string, AdvancedAnalysisResult>>({});
+  const [analysisErrorsByItem, setAnalysisErrorsByItem] = useState<Record<string, string>>({});
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -1450,6 +1461,68 @@ export function AssessmentTab() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
+  };
+
+  const updateAnalysisApiUrl = (value: string) => {
+    setAnalysisApiUrl(value);
+    localStorage.setItem('hfs_analysis_api_url', value);
+  };
+
+  const runAdvancedAnalysisForItem = async (item: AssessmentItem) => {
+    const recordingId = item.recordingIds?.at(-1);
+    if (!recordingId) {
+      alert('Record this assessment line before running advanced analysis.');
+      return;
+    }
+    if (!analysisApiUrl.trim()) {
+      alert('Add the analysis backend URL first.');
+      return;
+    }
+
+    setAnalysisStatusByItem(prev => ({ ...prev, [item.id]: 'running' }));
+    setAnalysisErrorsByItem(prev => ({ ...prev, [item.id]: '' }));
+
+    try {
+      const storedRecording = await db.recordings.get(recordingId);
+      if (!storedRecording?.audio) {
+        throw new Error('Could not find the linked recording.');
+      }
+
+      const recording = storedRecording.isEncrypted
+        ? masterKey
+          ? await decryptRecording(storedRecording, masterKey)
+          : null
+        : storedRecording;
+
+      if (!recording?.audio) {
+        throw new Error('Unlock local security before uploading this encrypted recording.');
+      }
+
+      const result = await submitAdvancedAnalysis({
+        apiUrl: analysisApiUrl.trim(),
+        apiKey: getAnalysisApiKey(),
+        audio: recording.audio,
+        filename: recording.name || `assessment-${item.id}.webm`,
+        promptText: item.scriptText || item.prompt
+      });
+
+      setAnalysisResultsByItem(prev => ({ ...prev, [item.id]: result }));
+      setAnalysisStatusByItem(prev => ({ ...prev, [item.id]: 'complete' }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Advanced analysis failed.';
+      setAnalysisErrorsByItem(prev => ({ ...prev, [item.id]: message }));
+      setAnalysisStatusByItem(prev => ({ ...prev, [item.id]: 'error' }));
+    }
+  };
+
+  const insertAdvancedAnalysisIntoNotes = async (item: AssessmentItem) => {
+    const result = analysisResultsByItem[item.id];
+    if (!result) return;
+    const analysisNote = formatAdvancedAnalysisForNotes(result);
+    const notes = item.notes?.trim()
+      ? `${item.notes.trim()}\n\n${analysisNote}`
+      : analysisNote;
+    await updateItem(item.id, { notes, status: item.status === 'not_started' ? 'in_progress' : item.status });
   };
 
   const generateSummary = () => {
@@ -2203,6 +2276,13 @@ export function AssessmentTab() {
               onAppendNote={(note) => appendQuickNote(item, note)}
               onRecord={() => startRecording(item)}
               onStop={stopRecording}
+              analysisApiUrl={analysisApiUrl}
+              onAnalysisApiUrlChange={updateAnalysisApiUrl}
+              analysisStatus={analysisStatusByItem[item.id] || 'idle'}
+              analysisResult={analysisResultsByItem[item.id]}
+              analysisError={analysisErrorsByItem[item.id]}
+              onRunAdvancedAnalysis={() => runAdvancedAnalysisForItem(item)}
+              onInsertAdvancedAnalysis={() => insertAdvancedAnalysisIntoNotes(item)}
             />
           ))}
           <section className="bg-slate-800 border border-slate-700/80 p-5 rounded-3xl shadow-xl space-y-3 text-left">
@@ -2323,7 +2403,14 @@ function AssessmentItemCard({
   onToggleTag,
   onAppendNote,
   onRecord,
-  onStop
+  onStop,
+  analysisApiUrl,
+  onAnalysisApiUrlChange,
+  analysisStatus,
+  analysisResult,
+  analysisError,
+  onRunAdvancedAnalysis,
+  onInsertAdvancedAnalysis
 }: {
   item: AssessmentItem;
   isRecording: boolean;
@@ -2336,11 +2423,20 @@ function AssessmentItemCard({
   onAppendNote: (note: string) => void;
   onRecord: () => void;
   onStop: () => void;
+  analysisApiUrl: string;
+  onAnalysisApiUrlChange: (value: string) => void;
+  analysisStatus: 'idle' | 'running' | 'complete' | 'error';
+  analysisResult?: AdvancedAnalysisResult;
+  analysisError?: string;
+  onRunAdvancedAnalysis: () => void;
+  onInsertAdvancedAnalysis: () => void;
 }) {
   const options = resultOptionsForKind(item.kind);
   const tagOptions = tagOptionsForKind(item.kind);
   const listenFor = listenForItem(item);
   const quickNotes = quickNoteOptionsForItem(item);
+  const [analysisConsentConfirmed, setAnalysisConsentConfirmed] = useState(false);
+  const metrics = analysisResult?.metrics;
 
   return (
     <div className={`bg-slate-800 border p-5 rounded-3xl shadow-xl space-y-4 text-left ${statusTone(item)}`}>
@@ -2497,9 +2593,86 @@ function AssessmentItemCard({
       </div>
 
       {(item.recordingIds?.length || 0) > 0 && (
-        <p className="text-[11px] text-cyan-200 bg-cyan-500/10 border border-cyan-500/25 rounded-2xl p-3">
-          {item.recordingIds?.length} voice recording{item.recordingIds?.length === 1 ? '' : 's'} linked to this assessment line.
-        </p>
+        <div className="space-y-3">
+          <p className="text-[11px] text-cyan-200 bg-cyan-500/10 border border-cyan-500/25 rounded-2xl p-3">
+            {item.recordingIds?.length} voice recording{item.recordingIds?.length === 1 ? '' : 's'} linked to this assessment line.
+          </p>
+
+          <details className="bg-slate-950/70 border border-indigo-500/25 rounded-2xl p-3">
+            <summary className="cursor-pointer text-xs font-black text-indigo-100">
+              Run Advanced Analysis
+            </summary>
+            <div className="mt-3 space-y-3">
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Optional backend analysis uploads the latest linked recording and prompt text for temporary processing. It returns acoustic metrics only; it does not diagnose or replace SLP judgment.
+              </p>
+
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor={`analysis-api-${item.id}`}>
+                Analysis backend URL
+                <input
+                  id={`analysis-api-${item.id}`}
+                  value={analysisApiUrl}
+                  onChange={event => onAnalysisApiUrlChange(event.target.value)}
+                  placeholder="https://api.hearforspeech.com"
+                  className={`mt-2 w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 min-h-[44px] text-xs text-slate-100 placeholder-slate-600 ${FOCUS_CLASS}`}
+                />
+              </label>
+
+              <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer text-left ${analysisConsentConfirmed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100' : 'bg-amber-500/10 border-amber-500/25 text-amber-100'} ${FOCUS_CLASS}`}>
+                <input
+                  type="checkbox"
+                  checked={analysisConsentConfirmed}
+                  onChange={event => setAnalysisConsentConfirmed(event.target.checked)}
+                  className="mt-1 h-4 w-4 accent-emerald-500"
+                />
+                <span className="text-[11px] leading-relaxed">
+                  I have consent to upload this recording for temporary advanced analysis.
+                </span>
+              </label>
+
+              <button
+                type="button"
+                onClick={onRunAdvancedAnalysis}
+                disabled={!analysisConsentConfirmed || analysisStatus === 'running'}
+                className={`${BUTTON_CLASS} w-full text-xs ${
+                  analysisConsentConfirmed && analysisStatus !== 'running'
+                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    : 'bg-slate-900 border border-slate-700 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                {analysisStatus === 'running' ? 'Analyzing latest recording...' : 'Upload Latest Recording'}
+              </button>
+
+              {analysisError && (
+                <p className="text-[11px] text-rose-100 bg-rose-500/10 border border-rose-500/25 rounded-2xl p-3">
+                  {analysisError}
+                </p>
+              )}
+
+              {analysisResult && (
+                <div className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-3 space-y-2">
+                  <p className="text-xs font-black text-indigo-100">Analysis ready</p>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300">
+                    <span>Duration: {metrics?.duration_seconds?.toFixed(2) || '—'} sec</span>
+                    <span>Pitch: {metrics?.pitch_mean_hz?.toFixed(1) || '—'} Hz</span>
+                    <span>Intensity: {metrics?.mean_intensity_db?.toFixed(1) || '—'} dB</span>
+                    <span>Engine: {analysisResult.engine.name}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {analysisResult.clinician_summary}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onInsertAdvancedAnalysis}
+                    className={`${BUTTON_CLASS} w-full bg-slate-900 border border-indigo-400/40 text-indigo-100 text-xs`}
+                  >
+                    Insert Metrics Into SLP Notes
+                  </button>
+                </div>
+              )}
+            </div>
+          </details>
+        </div>
       )}
     </div>
   );
