@@ -216,6 +216,8 @@ VITE_HFS_ANALYSIS_API_KEY=
 
 When the SLP taps **Analyze** on Home, the app sends the latest recording to `POST /v1/analysis/speech-sound-patterns` for temporary processing. The response can include acoustic metrics, expected prompt targets, and possible speech-sound error candidates such as possible distortion, omission, substitution, cluster reduction, or recording-quality/intelligibility flags. Candidate cards show the target word, word position, inventory category, review score, and evidence when the backend returns them. The score only ranks review priority; it is not an accuracy percentage or diagnosis.
 
+After analysis, the SLP can tap **Confirm**, **Rule out**, or **Unsure** on each candidate. These labels are saved locally with the patient record. Confirmed and ruled-out labels are sent as `calibration_json` on future analysis requests for that patient so the backend can slightly tune review ranking. Unsure labels are saved for documentation context but do not tune ranking. The hosted API does not store calibration labels.
+
 When an assessment has recording consent confirmed and **Auto analyze recordings** is on, newly recorded assessment lines upload in the background for temporary processing. The line card changes to **Analysis ready** when metrics return, and the SLP can choose whether to insert those metrics into editable notes. The assessment header also includes **Analyze all recordings**, which uses the batch assessment endpoint when the backend has been deployed with `POST /v1/analysis/assessment-session`.
 
 The backend uses temporary processing and returns supporting acoustic descriptors and conservative review candidates. It does not diagnose, determine eligibility, or replace SLP interpretation. If the backend is offline, the guided assessment, recordings, checklist scoring, drafts, printing, and exports still work from local browser storage.
@@ -294,7 +296,7 @@ Next-step text is intentionally clinician-controlled and conservative. It is not
 
 Hear for Speech is local-first and designed to minimize cloud exposure.
 
-- Client profiles, goals, guided sessions, trials, legacy logs, and recordings are stored in the browser’s local IndexedDB/Dexie database.
+- Client profiles, goals, guided sessions, trials, SLP analyzer labels, legacy logs, and recordings are stored in the browser’s local IndexedDB/Dexie database.
 - The guided workflow does not add cloud services, third-party analytics, server storage, or external AI calls.
 - Optional browser/device security can lock the app with local passkey/PIN support.
 - Recording workflows remind users to confirm consent before saving audio.

@@ -17,7 +17,9 @@ import {
   type AssessmentItem,
   type ClientProfile,
   type GuidedSession,
-  type Recording
+  type Recording,
+  type SpeechSoundReview,
+  type SpeechSoundReviewDecision
 } from '../db/database';
 import { useStore, type AppTab } from '../store/useStore';
 import { encryptRecording } from '../utils/crypto';
@@ -27,7 +29,9 @@ import {
   getAnalysisApiKey,
   getDefaultAnalysisApiUrl,
   submitSpeechSoundPatternAnalysis,
-  type SpeechSoundAnalysisResult
+  type SpeechSoundCandidate,
+  type SpeechSoundAnalysisResult,
+  type SpeechSoundReviewLabel
 } from '../utils/advancedAnalysis';
 
 const ASSESSMENT_INTENT_KEY = 'hfs_assessment_start_intent';
@@ -181,12 +185,40 @@ const formatTime = (seconds: number) => {
   return `${minutes}:${secs}`;
 };
 
+const reviewIdForCandidate = (
+  clientId: string,
+  analysisJobId: string,
+  candidate: SpeechSoundCandidate
+) => [
+  'review',
+  clientId,
+  analysisJobId,
+  candidate.target,
+  candidate.target_word || '',
+  candidate.word_position || '',
+  candidate.error_type
+].map(part => encodeURIComponent(part)).join('|');
+
+const reviewToCalibrationLabel = (review: SpeechSoundReview): SpeechSoundReviewLabel => ({
+  target: review.target,
+  target_word: review.targetWord,
+  word_position: review.wordPosition,
+  category: review.category,
+  candidate_error_type: review.candidateErrorType,
+  candidate_score: review.candidateScore,
+  slp_decision: review.slpDecision,
+  confirmed_error_type: review.confirmedErrorType,
+  notes: review.notes,
+  created_at: review.createdAt
+});
+
 export function HomeTab() {
   const { setActiveTab, masterKey } = useStore();
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [assessmentItems, setAssessmentItems] = useState<AssessmentItem[]>([]);
   const [sessions, setSessions] = useState<GuidedSession[]>([]);
+  const [speechSoundReviews, setSpeechSoundReviews] = useState<SpeechSoundReview[]>([]);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [newPatientName, setNewPatientName] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -211,14 +243,16 @@ export function HomeTab() {
       db.clients.toArray(),
       db.assessments.toArray(),
       db.assessmentItems.toArray(),
-      db.guidedSessions.toArray()
-    ]).then(([storedClients, storedAssessments, storedItems, storedSessions]) => {
+      db.guidedSessions.toArray(),
+      db.speechSoundReviews.toArray()
+    ]).then(([storedClients, storedAssessments, storedItems, storedSessions, storedReviews]) => {
       if (!isMounted) return;
       const latestClients = latestByDate(storedClients);
       setClients(latestClients);
       setAssessments(latestByDate(storedAssessments));
       setAssessmentItems(storedItems);
       setSessions(latestByDate(storedSessions));
+      setSpeechSoundReviews(latestByDate(storedReviews));
       setSelectedClientId(prev => prev || latestClients[0]?.id || '');
     }).catch(console.error);
 
@@ -259,6 +293,25 @@ export function HomeTab() {
     () => assessmentItems.filter(item => (item.recordingIds?.length || 0) > 0 && item.advancedAnalysis?.status !== 'complete').length,
     [assessmentItems]
   );
+  const selectedClientReviewLabels = useMemo(
+    () => speechSoundReviews
+      .filter(review => review.clientId === selectedClient?.id)
+      .filter(review => review.slpDecision === 'confirmed' || review.slpDecision === 'ruled_out')
+      .slice(0, 120)
+      .map(reviewToCalibrationLabel),
+    [speechSoundReviews, selectedClient?.id]
+  );
+  const candidateReviewLookup = useMemo(() => {
+    const lookup = new Map<string, SpeechSoundReview>();
+    if (!quickAnalysisResult || !selectedClient) return lookup;
+    speechSoundReviews
+      .filter(review => (
+        review.clientId === selectedClient.id &&
+        review.analysisJobId === quickAnalysisResult.job_id
+      ))
+      .forEach(review => lookup.set(review.id, review));
+    return lookup;
+  }, [quickAnalysisResult, selectedClient, speechSoundReviews]);
 
   const jumpTo = (tab: AppTab) => setActiveTab(tab);
   const startAssessment = (intent: Record<string, string>) => {
@@ -363,8 +416,56 @@ export function HomeTab() {
     ));
   };
 
+  const saveCandidateReview = async (
+    candidate: SpeechSoundCandidate,
+    slpDecision: SpeechSoundReviewDecision
+  ) => {
+    const client = selectedClient || await getOrCreateSelectedClient();
+    if (!client || !quickAnalysisResult) return;
+
+    const now = new Date().toISOString();
+    const review: SpeechSoundReview = {
+      id: reviewIdForCandidate(client.id, quickAnalysisResult.job_id, candidate),
+      clientId: client.id,
+      recordingId: lastRecordingId || undefined,
+      analysisJobId: quickAnalysisResult.job_id,
+      target: candidate.target,
+      targetWord: candidate.target_word,
+      wordPosition: candidate.word_position,
+      category: candidate.category,
+      candidateErrorType: candidate.error_type,
+      candidateScore: candidate.score,
+      slpDecision,
+      confirmedErrorType: slpDecision === 'confirmed' ? candidate.error_type : undefined,
+      createdAt: now
+    };
+
+    await db.speechSoundReviews.put(review);
+    setSpeechSoundReviews(prev => latestByDate([
+      review,
+      ...prev.filter(item => item.id !== review.id)
+    ]));
+    setQuickStatus(
+      slpDecision === 'confirmed'
+        ? 'SLP label saved: confirmed. Future analysis can rank similar items higher.'
+        : slpDecision === 'ruled_out'
+          ? 'SLP label saved: ruled out. Future analysis can rank similar items lower.'
+          : 'SLP label saved as unsure. It will not tune ranking yet.'
+    );
+  };
+
   const buildQuickReviewNote = () => {
     const patientLabel = selectedClient?.displayName || newPatientName.trim() || 'Patient';
+    const confirmedLabels = speechSoundReviews.filter(review => (
+      review.clientId === selectedClient?.id &&
+      review.analysisJobId === quickAnalysisResult?.job_id &&
+      review.slpDecision === 'confirmed'
+    ));
+    const ruledOutLabels = speechSoundReviews.filter(review => (
+      review.clientId === selectedClient?.id &&
+      review.analysisJobId === quickAnalysisResult?.job_id &&
+      review.slpDecision === 'ruled_out'
+    ));
     const analysisText = quickAnalysisResult
       ? `\nSpeech-sound candidates for SLP review:\n${formatSpeechSoundAnalysisForNotes(quickAnalysisResult)}`
       : '';
@@ -372,6 +473,7 @@ export function HomeTab() {
       `Quick speech check for ${patientLabel}.`,
       lastRecordingId ? `Recording saved locally: #${lastRecordingId}.` : 'No recording saved yet.',
       quickAnalysisStatus === 'complete' ? 'Analyzer status: complete; SLP review required.' : `Analyzer status: ${quickAnalysisStatus}.`,
+      `SLP-confirmed analyzer labels: ${confirmedLabels.length}; ruled out: ${ruledOutLabels.length}.`,
       `SLP-marked observations: ${speechObservationTags.length ? speechObservationTags.join(', ') : 'none selected yet'}.`,
       quickNote.trim() ? `Notes: ${quickNote.trim()}` : 'Notes: none entered yet.',
       'Consider using the printable 14-year-old full sound inventory or a formal measure if concerns persist.',
@@ -395,6 +497,7 @@ export function HomeTab() {
         apiKey: getAnalysisApiKey(),
         audio: lastRecordingBlob,
         filename: lastRecordingName || 'quick-speech-sample.webm',
+        calibrationLabels: selectedClientReviewLabels,
         promptText: [
           TEEN_READING_PASSAGE,
           'Explain how to play or do something you know well.',
@@ -547,48 +650,81 @@ export function HomeTab() {
             </button>
             <p className="text-xs font-semibold leading-relaxed text-slate-700">
               Analysis temporarily uploads this recording to the configured HearForSpeech API for acoustic review. Sound-error calls remain SLP-reviewed.
+              {selectedClientReviewLabels.length > 0 ? ` ${selectedClientReviewLabels.length} SLP label(s) will tune ranking for this patient.` : ''}
             </p>
             {quickAnalysisStatus === 'complete' && quickAnalysisResult && (
               <div className="rounded-2xl border border-blue-200 bg-white p-3">
                 <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">Analysis ready</p>
                 <p className="mt-1 text-sm font-black text-slate-950">{quickAnalysisResult.clinician_summary}</p>
+                {quickAnalysisResult.calibration_profile && (
+                  <p className="mt-2 rounded-2xl bg-sky-50 px-3 py-2 text-xs font-semibold leading-relaxed text-slate-700">
+                    Calibration: {quickAnalysisResult.calibration_profile.summary}
+                  </p>
+                )}
                 {quickAnalysisResult.possible_errors.length > 0 && (
                   <div className="mt-3 space-y-2">
-                    {quickAnalysisResult.possible_errors.slice(0, 6).map(candidate => (
-                      <div
-                        key={`${candidate.target}-${candidate.error_type}-${candidate.review_prompt}`}
-                        className="rounded-2xl border border-amber-200 bg-amber-50 p-3"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-black text-slate-950">
-                            {candidate.target_word ? `${candidate.target_word} · ` : ''}{candidate.target}
-                          </span>
-                          <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
-                            {candidate.confidence} · {Math.round(candidate.score * 100)}%
-                          </span>
-                        </div>
-                        {(candidate.word_position || candidate.category) && (
-                          <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
-                            {[candidate.word_position, candidate.category].filter(Boolean).join(' · ')}
+                    {quickAnalysisResult.possible_errors.slice(0, 6).map(candidate => {
+                      const savedReview = selectedClient
+                        ? candidateReviewLookup.get(reviewIdForCandidate(selectedClient.id, quickAnalysisResult.job_id, candidate))
+                        : undefined;
+                      return (
+                        <div
+                          key={`${candidate.target}-${candidate.error_type}-${candidate.review_prompt}`}
+                          className="rounded-2xl border border-amber-200 bg-amber-50 p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-black text-slate-950">
+                              {candidate.target_word ? `${candidate.target_word} · ` : ''}{candidate.target}
+                            </span>
+                            <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
+                              {candidate.confidence} · {Math.round(candidate.score * 100)}%
+                            </span>
+                          </div>
+                          {(candidate.word_position || candidate.category) && (
+                            <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                              {[candidate.word_position, candidate.category].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                          <p className="mt-1 text-xs font-black uppercase tracking-wide text-amber-800">
+                            {candidate.error_type.replaceAll('_', ' ')}
                           </p>
-                        )}
-                        <p className="mt-1 text-xs font-black uppercase tracking-wide text-amber-800">
-                          {candidate.error_type.replaceAll('_', ' ')}
-                        </p>
-                        <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-700">
-                          {candidate.review_prompt}
-                        </p>
-                        {candidate.evidence.length > 0 && (
-                          <ul className="mt-2 space-y-1">
-                            {candidate.evidence.slice(0, 2).map(evidence => (
-                              <li key={evidence} className="text-[11px] font-semibold leading-relaxed text-slate-600">
-                                • {evidence}
-                              </li>
+                          <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-700">
+                            {candidate.review_prompt}
+                          </p>
+                          {candidate.evidence.length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                              {candidate.evidence.slice(0, 3).map(evidence => (
+                                <li key={evidence} className="text-[11px] font-semibold leading-relaxed text-slate-600">
+                                  • {evidence}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <div className="mt-3 grid grid-cols-3 gap-2">
+                            {[
+                              { value: 'confirmed', label: 'Confirm', style: 'bg-emerald-600 text-white' },
+                              { value: 'ruled_out', label: 'Rule out', style: 'bg-white border border-slate-200 text-slate-800' },
+                              { value: 'uncertain', label: 'Unsure', style: 'bg-white border border-amber-200 text-amber-800' }
+                            ].map(action => (
+                              <button
+                                key={action.value}
+                                type="button"
+                                onClick={() => saveCandidateReview(candidate, action.value as SpeechSoundReviewDecision)}
+                                className={`${BIG_BUTTON} min-h-[46px] rounded-2xl px-2 text-xs ${savedReview?.slpDecision === action.value ? action.style : 'bg-white border border-slate-200 text-slate-700'}`}
+                                aria-pressed={savedReview?.slpDecision === action.value}
+                              >
+                                {action.label}
+                              </button>
                             ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))}
+                          </div>
+                          {savedReview && (
+                            <p className="mt-2 text-[11px] font-black uppercase tracking-wide text-slate-600">
+                              SLP label saved: {savedReview.slpDecision.replace('_', ' ')}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">

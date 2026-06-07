@@ -83,6 +83,44 @@ export interface SpeechSoundCandidate {
   review_prompt: string;
 }
 
+export interface SpeechSoundReviewLabel {
+  target: string;
+  target_word?: string | null;
+  word_position?: string | null;
+  category?: string | null;
+  candidate_error_type: string;
+  candidate_score: number;
+  slp_decision: 'confirmed' | 'ruled_out' | 'uncertain';
+  confirmed_error_type?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+}
+
+export interface CalibrationTargetStats {
+  key: string;
+  target: string;
+  word_position?: string | null;
+  error_type: string;
+  reviewed: number;
+  confirmed: number;
+  ruled_out: number;
+  precision_estimate: number;
+  suggested_score_adjustment: number;
+}
+
+export interface SpeechSoundCalibrationProfile {
+  label_count: number;
+  reviewed_count: number;
+  target_stats: CalibrationTargetStats[];
+  summary: string;
+}
+
+export interface CalibrationProfileResponse {
+  status: 'complete';
+  profile: SpeechSoundCalibrationProfile;
+  clinical_notice: string;
+}
+
 export interface SpeechSoundAnalysisResult {
   job_id: string;
   request_id?: string | null;
@@ -94,6 +132,7 @@ export interface SpeechSoundAnalysisResult {
   metrics: AdvancedAnalysisMetrics | null;
   possible_errors: SpeechSoundCandidate[];
   review_facts: AnalysisReviewFact[];
+  calibration_profile?: SpeechSoundCalibrationProfile | null;
   warnings: string[];
   clinician_summary: string;
   clinical_notice: string;
@@ -240,13 +279,15 @@ export async function submitSpeechSoundPatternAnalysis({
   apiKey,
   audio,
   filename,
-  promptText
+  promptText,
+  calibrationLabels
 }: {
   apiUrl: string;
   apiKey?: string;
   audio: Blob;
   filename: string;
   promptText: string;
+  calibrationLabels?: SpeechSoundReviewLabel[];
 }): Promise<SpeechSoundAnalysisResult> {
   const endpoint = `${trimTrailingSlash(apiUrl)}/v1/analysis/speech-sound-patterns`;
   const formData = new FormData();
@@ -254,6 +295,9 @@ export async function submitSpeechSoundPatternAnalysis({
   formData.append('prompt_text', promptText);
   formData.append('consent_confirmed', 'true');
   formData.append('retention_policy', 'temporary');
+  if (calibrationLabels?.length) {
+    formData.append('calibration_json', JSON.stringify({ labels: calibrationLabels }));
+  }
 
   const headers: HeadersInit = {};
   if (apiKey) headers['X-HFS-API-Key'] = apiKey;
@@ -276,6 +320,42 @@ export async function submitSpeechSoundPatternAnalysis({
   }
 
   return response.json() as Promise<SpeechSoundAnalysisResult>;
+}
+
+export async function submitCalibrationProfile({
+  apiUrl,
+  apiKey,
+  labels
+}: {
+  apiUrl: string;
+  apiKey?: string;
+  labels: SpeechSoundReviewLabel[];
+}): Promise<CalibrationProfileResponse> {
+  const endpoint = `${trimTrailingSlash(apiUrl)}/v1/analysis/calibration-profile`;
+  const headers: HeadersInit = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json'
+  };
+  if (apiKey) headers['X-HFS-API-Key'] = apiKey;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ labels })
+  });
+
+  if (!response.ok) {
+    let message = `Calibration profile failed (${response.status}).`;
+    try {
+      const error = await response.json();
+      if (error?.detail) message = error.detail;
+    } catch {
+      // Keep default message.
+    }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<CalibrationProfileResponse>;
 }
 
 export async function submitAssessmentSessionAnalysis({

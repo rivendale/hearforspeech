@@ -1,22 +1,25 @@
 ## Summary
 
-Improves the **Record → Stop → Analyze** review experience so backend speech-sound candidates are easier for an SLP to interpret and confirm.
+Adds SLP-confirmed analyzer labels to the **Record → Stop → Analyze** workflow so clinician feedback can tune future candidate ranking.
 
 ## What changed
 
-- Extends frontend analysis types for `target_word`, `word_position`, `category`, and `score`.
-- Shows candidate cards with the target word/sound, confidence label, review score, word position/category, and evidence.
-- Includes enriched candidate context in copied/generated analysis notes.
-- Documents that candidate scores rank review priority and are not diagnoses or accuracy percentages.
+- Adds a local `speechSoundReviews` Dexie table for SLP candidate labels.
+- Adds **Confirm**, **Rule out**, and **Unsure** buttons to analyzer candidate cards.
+- Sends confirmed/ruled-out labels as `calibration_json` with future patient analysis requests.
+- Displays calibration summaries returned by the backend.
+- Includes saved label counts in quick notes and full backups/imports.
+- Deletes review labels with one-tap patient data deletion and full local data wipes.
 
 ## Why this helps SLPs
 
-The clinician can move faster from recording to review: likely speech-sound patterns now identify the specific word/position and evidence to check while replaying the sample.
+The clinician can quickly teach the app which analyzer candidates were useful or not useful, without creating a separate labeling tool. Over time, repeated SLP review makes the candidate list easier to scan while preserving SLP-controlled interpretation.
 
 ## Data/privacy notes
 
 - Recordings still save locally unless the SLP taps Analyze.
 - Analyze sends the recording to the configured HearForSpeech API for temporary processing.
+- SLP labels save locally and are sent only as request-time calibration payloads or user-controlled exports.
 - Candidate errors are SLP-review prompts, not diagnoses or eligibility decisions.
 - Quick checks save as unscored local guided-session notes.
 
@@ -27,6 +30,6 @@ The clinician can move faster from recording to review: likely speech-sound patt
 
 ## Known limitations / follow-up ideas
 
-- Accuracy improves most with scripted prompts and full sound inventory recordings.
+- Calibration needs repeated SLP labels before it meaningfully changes ranking.
 - Backend MFA timestamps and Allosaurus phone candidates depend on server-side model/dependency availability.
-- Future UI can add confirm/ignore buttons per candidate with replay timestamps.
+- Future UI can add replay timestamps, bulk label export, and target-specific label review dashboards.

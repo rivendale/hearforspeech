@@ -8,11 +8,15 @@ Default API
 Frontend integration
 - Check GET /v1/capabilities before showing "Analysis Ready".
 - Upload assessment recordings with POST /v1/analysis/parselmouth only after recording consent is confirmed.
+- Use POST /v1/analysis/speech-sound-patterns for the Home Record → Stop → Analyze workflow.
+- Send optional `calibration_json` with locally stored SLP confirmed/ruled-out candidate labels to tune ranking.
+- Use POST /v1/analysis/calibration-profile to summarize local SLP labels without uploading audio.
 - Use multipart form fields:
   - file: audio recording blob
   - prompt_text: assessment line prompt/script
   - consent_confirmed: true
   - retention_policy: temporary
+  - calibration_json: optional JSON with `{ "labels": [...] }`
 - If configured, send X-HFS-API-Key.
 - Treat returned metrics as objective acoustic descriptors for SLP review only.
 - Never label backend output as diagnosis, eligibility, or treatment direction.
@@ -21,7 +25,9 @@ Current endpoints
 - GET /health
 - GET /v1/capabilities
 - POST /v1/analysis/parselmouth
+- POST /v1/analysis/speech-sound-patterns
 - POST /v1/analysis/assessment-session
+- POST /v1/analysis/calibration-profile
 
 Batch assessment endpoint
 - POST /v1/analysis/assessment-session accepts `assessment_json` plus one or more `files`.
@@ -31,10 +37,12 @@ Batch assessment endpoint
 Privacy and safety
 - Audio leaves the browser only for consent-confirmed backend analysis.
 - The hosted API is for temporary processing, not client record storage.
+- SLP analyzer labels are local browser records unless exported by the clinician or sent as request-time calibration JSON.
 - Exported notes and backups may contain protected or sensitive information.
 - Clinics remain responsible for consent, device controls, retention, backup handling, and HIPAA/FERPA compliance review.
 
 Suggested future engines
 - MFA forced alignment for scripted prompts.
 - Allosaurus phone-candidate mode behind a beta/exploratory label.
+- SLP-labeled recording exports for validation of target-specific acoustic models.
 - Optional self-hosted local LLM summarization only for structured clinician drafts, never automated diagnosis.
