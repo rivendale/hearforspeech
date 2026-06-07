@@ -214,7 +214,7 @@ VITE_HFS_ANALYSIS_API_URL=https://api.hearforspeech.com
 VITE_HFS_ANALYSIS_API_KEY=
 ```
 
-When the SLP taps **Analyze** on Home, the app sends the latest recording to `POST /v1/analysis/speech-sound-patterns` for temporary processing. The response can include acoustic metrics, expected prompt targets, and possible speech-sound error candidates such as possible distortion, omission, substitution, cluster reduction, or recording-quality/intelligibility flags.
+When the SLP taps **Analyze** on Home, the app sends the latest recording to `POST /v1/analysis/speech-sound-patterns` for temporary processing. The response can include acoustic metrics, expected prompt targets, and possible speech-sound error candidates such as possible distortion, omission, substitution, cluster reduction, or recording-quality/intelligibility flags. Candidate cards show the target word, word position, inventory category, review score, and evidence when the backend returns them. The score only ranks review priority; it is not an accuracy percentage or diagnosis.
 
 When an assessment has recording consent confirmed and **Auto analyze recordings** is on, newly recorded assessment lines upload in the background for temporary processing. The line card changes to **Analysis ready** when metrics return, and the SLP can choose whether to insert those metrics into editable notes. The assessment header also includes **Analyze all recordings**, which uses the batch assessment endpoint when the backend has been deployed with `POST /v1/analysis/assessment-session`.
 

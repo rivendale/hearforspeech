@@ -560,17 +560,33 @@ export function HomeTab() {
                         className="rounded-2xl border border-amber-200 bg-amber-50 p-3"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-black text-slate-950">{candidate.target}</span>
+                          <span className="text-sm font-black text-slate-950">
+                            {candidate.target_word ? `${candidate.target_word} · ` : ''}{candidate.target}
+                          </span>
                           <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
-                            {candidate.confidence}
+                            {candidate.confidence} · {Math.round(candidate.score * 100)}%
                           </span>
                         </div>
+                        {(candidate.word_position || candidate.category) && (
+                          <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                            {[candidate.word_position, candidate.category].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
                         <p className="mt-1 text-xs font-black uppercase tracking-wide text-amber-800">
                           {candidate.error_type.replaceAll('_', ' ')}
                         </p>
                         <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-700">
                           {candidate.review_prompt}
                         </p>
+                        {candidate.evidence.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {candidate.evidence.slice(0, 2).map(evidence => (
+                              <li key={evidence} className="text-[11px] font-semibold leading-relaxed text-slate-600">
+                                • {evidence}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     ))}
                   </div>

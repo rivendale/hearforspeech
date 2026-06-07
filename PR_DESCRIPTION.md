@@ -1,21 +1,17 @@
 ## Summary
 
-Makes the app front door a simple **Record → Stop → Analyze** workflow and adds a full 14-year-old sound inventory path.
+Improves the **Record → Stop → Analyze** review experience so backend speech-sound candidates are easier for an SLP to interpret and confirm.
 
 ## What changed
 
-- Updates Home to lead with **Record. Stop. Analyze.**
-- Adds a big Analyze button after recording.
-- Wires Analyze to `POST /v1/analysis/speech-sound-patterns`.
-- Shows possible speech-sound error candidates for SLP review, including possible distortion, omission, substitution, cluster reduction, and intelligibility/recording-quality flags.
-- Keeps SLP confirmation chips before documentation.
-- Adds a printable 14-year-old full sound inventory with consonants by word position, vowels, clusters, multisyllabic words, connected speech, checklist, and report starter.
-- Adds a guided full sound inventory assessment preset.
-- Updates frontend analysis types and README.
+- Extends frontend analysis types for `target_word`, `word_position`, `category`, and `score`.
+- Shows candidate cards with the target word/sound, confidence label, review score, word position/category, and evidence.
+- Includes enriched candidate context in copied/generated analysis notes.
+- Documents that candidate scores rank review priority and are not diagnoses or accuracy percentages.
 
 ## Why this helps SLPs
 
-The clinician no longer has to understand the whole app before using it. The main screen supports the desired flow: select patient, record, stop, analyze, review likely speech-sound patterns, confirm what was actually heard, and save/copy the note.
+The clinician can move faster from recording to review: likely speech-sound patterns now identify the specific word/position and evidence to check while replaying the sample.
 
 ## Data/privacy notes
 
