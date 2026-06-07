@@ -89,16 +89,18 @@ Use **Assess** when the SLP has only a phone/tablet and needs to start quickly:
 1. Tap **New Patient** or **Load Patient**.
 2. Enter or confirm the patient name and speech focus for the assessment.
 3. Choose one diagnostic path:
-   - **I have 10 minutes**
-   - **14-year-old diagnostic**
+   - **10-min screen**
+   - **Full articulation / intelligibility**
    - **/r/ deep dive**
+   - **Voice / resonance**
+   - **Connected speech**
    - **School participation**
-   - **Voice / resonance check**
-   - **Noise / listening check**
-4. Confirm recording/assessment consent.
-5. Follow each line: say the teen-friendly script, record when useful, listen for the listed observations, tap a result, and add one-tap notes.
-6. Add custom lines during the assessment whenever the clinician hears something unexpected.
-7. Generate editable diagnostic summary, recommendations, and therapy/home-practice starter text.
+   - **Listener Check**
+4. Review the **Patient read-ahead worksheet** and tap **Print / Save PDF Worksheet** if the student needs lines to read before recording.
+5. Confirm recording/assessment consent.
+6. Follow each line: say the script, record when useful, listen for the listed observations, tap a result, and add one-tap notes.
+7. Use **Next Line** to jump to the next unfinished item, or add custom lines whenever the clinician hears something unexpected.
+8. Generate editable diagnostic summary, school note, SOAP note, recommendations, and therapy/home-practice starter text.
 
 The assessment workflow is checklist-driven and local-first. It supports clinical organization, documentation, and therapy planning, but the SLP remains responsible for interpretation, diagnosis, eligibility decisions, and any standardized assessment requirements.
 
@@ -115,12 +117,13 @@ These are prompts and documentation aids, not automated diagnoses. Open-source t
 
 ### Printable Student / Caregiver Handouts
 
-Session and assessment summaries include a **Patient handout preview** and **Print / Save PDF** action:
+Assessment setup includes a **Patient read-ahead worksheet** before recording starts. Session and assessment summaries also include a **Patient handout preview** and **Print / Save PDF** action:
 
-1. Review and edit the generated home-practice or practice-starter text.
-2. Tap **Print / Save PDF**.
-3. On mobile, use the browser/device print sheet, then choose **Save as PDF** or print to a connected printer.
-4. Share only after the SLP confirms the target, cue, practice schedule, and caregiver wording.
+1. Before the diagnostic, review the read-ahead worksheet and tap **Print / Save PDF Worksheet** if the student needs printed lines.
+2. After the session or assessment, review and edit the generated home-practice or practice-starter text.
+3. Tap **Print / Save PDF**.
+4. On mobile, use the browser/device print sheet, then choose **Save as PDF** or print to a connected printer.
+5. Share only after the SLP confirms the target, cue, practice schedule, and caregiver wording.
 
 Printed handouts use plain language and are designed for one student/family. They do not include other client records.
 

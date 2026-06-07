@@ -1,45 +1,36 @@
 ## Summary
 
-Makes HearForSpeech feel like a zero-doc, phone-first clinical workflow: open the app, choose patient, choose assessment/session, record, analyze, and finish with editable documentation and printable practice.
+Polishes the phone-first diagnostic workflow so an SLP can start from the Home screen, choose a diagnostic, print a patient read-ahead worksheet, record line-by-line, and keep moving without horizontal clipping or extra navigation.
 
 ## What changed
 
-- Adds a new default **Home** tab with **New Patient**, **Load Patient**, **Start Assessment**, **Start Therapy Session**, and **Review Results** actions.
-- Adds assessment-pack shortcuts for 10-minute screen, full articulation/intelligibility, /r/ deep dive, voice/resonance, connected speech, school participation, and Listener Check.
-- Adds Home patient timeline cards for recent patients, assessments, and analysis queue status.
-- Adds a large active-line recording bar with **Record**, **Stop**, **Re-record**, and **Skip**.
-- Surfaces analysis queue states as **Queued**, **Analyzing**, **Ready**, or **Needs review**.
-- Adds a one-tap **Analyze all recordings** action wired to the batch assessment-session API.
-- Expands the assessment end screen with editable diagnostic summary, school-style note, SOAP note, recommendations, home practice, copy, save, and print/PDF actions.
-- Documents the no-doc workflow and batch endpoint expectations.
-
-## Backend companion
-
-The companion backend PR adds:
-
-- `POST /v1/analysis/assessment-session`
-- `assessment_json` plus multiple uploaded recordings
-- Per-line analysis statuses and summary-ready facts
+- Fixes mobile header/home layout overflow so small phones show the full Home workflow.
+- Simplifies Home copy around the core path: pick patient, record lines, print plan.
+- Adds a three-step Home runway for **Pick Patient → Record Lines → Print Plan**.
+- Adds a patient read-ahead worksheet on the assessment Ready screen before recording begins.
+- Adds **Print / Save PDF Worksheet** using the browser/device print sheet, keeping the app dependency-free.
+- Adds a live diagnostic runway for **Say → Record → Tap Score → Next**.
+- Adds **Next Line** to jump to the next unfinished assessment line.
+- Updates README assessment instructions and handout/PDF wording.
 
 ## Why this helps SLPs
 
-The app no longer asks the SLP to understand tabs before doing clinical work. It starts with what the SLP is trying to do, then keeps the workflow moving with large controls, clear assessment packs, automatic analysis status, and one end screen for documentation and family/student practice.
+The app now supports the real in-room flow more directly: the clinician can prepare readable prompts for the patient, run the assessment from a phone, avoid hunting through sections, and finish with printable materials.
 
 ## Data/privacy notes
 
-- Recording consent is still required before saving or uploading audio.
-- Backend output remains objective acoustic descriptors for SLP review only.
-- Generated notes are editable drafts and do not diagnose, determine eligibility, or replace clinical judgment.
-- The local workflow still works if backend analysis is unavailable.
+- Worksheet printing is generated locally in the browser.
+- No new cloud services, analytics, server storage, or external AI calls are added.
+- Printed worksheets remain clinician-controlled and should only be shared after SLP review.
 
 ## Testing performed
 
 - `npm run lint`
 - `npm run build`
+- Mobile-emulated layout check at 390px width with no horizontal overflow.
 
 ## Known limitations / follow-up ideas
 
-- The batch endpoint must be deployed on `api.hearforspeech.com` before **Analyze all recordings** succeeds in production.
-- Future work can add retry persistence for queued analysis jobs.
-- MFA forced alignment should come before Allosaurus/Gemma.
-- Optional Gemma support should stay as a separate draft-assist worker, not a diagnostic authority.
+- Browser PDF creation still uses the native print/save-as-PDF flow instead of bundling a PDF library.
+- A future pass could add a dedicated worksheet template editor for clinics.
+- A future pass could add first-run coach marks, but the current flow avoids requiring a guide.

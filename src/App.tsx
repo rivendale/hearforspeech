@@ -741,25 +741,26 @@ export default function App() {
   }
 
   return (
-    <div className="hfs-daylight min-h-screen bg-slate-950 text-slate-100 flex flex-col antialiased font-sans select-none">
+    <div className="hfs-daylight min-h-screen overflow-x-hidden bg-slate-950 text-slate-100 flex flex-col antialiased font-sans select-none">
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-900 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="bg-indigo-650 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20">
+      <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-900 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="shrink-0 bg-indigo-650 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20">
             <Activity size={22} className="animate-pulse" />
           </div>
-          <div className="text-left">
-            <h1 className="hfs-brand-title font-black text-lg tracking-tight bg-clip-text text-transparent">
+          <div className="text-left min-w-0">
+            <h1 className="hfs-brand-title font-black text-lg tracking-tight bg-clip-text text-transparent truncate">
               Hear for Speech
             </h1>
-            <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Bright guided SLP toolkit</p>
+            <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium tracking-wide uppercase truncate">Bright guided SLP toolkit</p>
           </div>
         </div>
         
         {/* Calibration Badge trigger */}
         <button
           onClick={() => setShowCalibrationModal(true)}
-          className={`flex items-center gap-1.5 border px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all duration-300 min-h-[32px] ${
+          aria-label={analysisBadgeLabel}
+          className={`shrink-0 max-w-[112px] sm:max-w-none flex items-center gap-1.5 border px-2 sm:px-3 py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold tracking-wider uppercase transition-all duration-300 min-h-[32px] ${
             isAnalysisApiReady
               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
               : analysisApiChecking
@@ -768,12 +769,12 @@ export default function App() {
           }`}
         >
           <Cpu size={12} className={isAnalysisApiReady ? "" : "animate-pulse"} />
-          <span>{analysisBadgeLabel}</span>
+          <span className="truncate">{analysisBadgeLabel}</span>
         </button>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-lg sm:max-w-2xl w-full mx-auto p-3 sm:p-4 pb-28 flex flex-col justify-start overflow-y-auto">
+      <main className="flex-1 max-w-full sm:max-w-2xl w-full mx-auto p-3 sm:p-4 pb-28 flex flex-col justify-start overflow-x-hidden overflow-y-auto">
         {activeTab === 'assessment' && (
           <WorkflowGuide activeTab={activeTab} onJump={setActiveTab} />
         )}
@@ -792,7 +793,7 @@ export default function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-slate-950/95 backdrop-blur-lg border-t border-slate-900 flex justify-around p-2.5 z-50 rounded-t-2xl shadow-2xl">
+      <nav className="fixed bottom-0 left-0 right-0 max-w-full sm:max-w-lg mx-auto bg-slate-950/95 backdrop-blur-lg border-t border-slate-900 flex justify-around p-2.5 z-50 rounded-t-2xl shadow-2xl">
         <button
           onClick={() => setActiveTab('home')}
           className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
