@@ -741,7 +741,7 @@ export default function App() {
   }
 
   return (
-    <div className="hfs-daylight min-h-screen overflow-x-hidden bg-slate-950 text-slate-100 flex flex-col antialiased font-sans select-none">
+    <div className="hfs-app-shell hfs-daylight min-h-screen overflow-x-hidden bg-slate-950 text-slate-100 flex flex-col antialiased font-sans select-none">
       {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-900 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -774,7 +774,7 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-full sm:max-w-2xl w-full mx-auto p-3 sm:p-4 pb-28 flex flex-col justify-start overflow-x-hidden overflow-y-auto">
+      <main className="hfs-app-main flex-1 min-h-0 max-w-full sm:max-w-2xl w-full mx-auto p-3 sm:p-4 pb-28 flex flex-col justify-start overflow-x-hidden overflow-y-auto">
         {activeTab === 'assessment' && (
           <WorkflowGuide activeTab={activeTab} onJump={setActiveTab} />
         )}
