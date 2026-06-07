@@ -78,7 +78,7 @@ The built-in Assessment Coach offers several teen-focused paths:
 Use **Assess** when the SLP has only a phone/tablet and needs to start quickly:
 
 1. Tap **New Patient** or **Load Patient**.
-2. Enter or confirm the key profile details: age, optional gender/voice context, language/dialect context, hearing/listening access, and the main concern.
+2. Enter or confirm the patient name and speech focus for the assessment.
 3. Choose one diagnostic path:
    - **I have 10 minutes**
    - **14-year-old diagnostic**
@@ -282,7 +282,6 @@ Exported backups are JSON payloads. Older backups with only `logs` and `recordin
         "clientId": "client-id",
         "template": "adolescent_speech_intelligibility",
         "studentAge": 14,
-        "studentGender": "optional clinician-entered context",
         "languageBackground": "English; Spanish at home",
         "hearingStatus": "passed recent screen; noise concern",
         "diagnosticFlags": ["bilingual_dialect", "hearing_access", "noise_distance"],

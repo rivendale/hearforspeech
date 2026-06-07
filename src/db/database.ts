@@ -119,7 +119,6 @@ export interface Assessment {
   clientId: string;
   template: AssessmentTemplate;
   studentAge?: number;
-  studentGender?: string;
   languageBackground?: string;
   hearingStatus?: string;
   diagnosticFlags?: string[];

@@ -5,7 +5,7 @@ Makes the **Assess** tab dramatically simpler for phone-based diagnostic starts:
 ## What changed
 
 - Reworked the Assess landing screen into a bright, mobile-first launcher with clear phases: patient choice, new patient, load patient, profile, diagnostic, and ready.
-- Added local-only assessment profile fields for age, gender/voice context, language/dialect context, hearing/listening access, diagnostic checklist lenses, and quick questionnaire/check selections.
+- Added local-only assessment profile fields for speech-focused assessment context, diagnostic checklist lenses, and quick questionnaire/check selections.
 - Added research-informed local checklist lines for language/dialect context, hearing/listening access, voice/resonance, noise/distance, student impact, caregiver/teacher input, Listener Check, and literacy follow-up flags.
 - Added two plain-language diagnostic paths: **Voice / resonance check** and **Noise / listening check**.
 - Updated generated diagnostic summaries to include profile context, selected diagnostic lenses, selected quick checks, and conservative “Consider...” follow-up flags.

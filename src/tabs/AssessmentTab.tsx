@@ -192,9 +192,9 @@ const BROAD_SCREEN_ITEMS: TemplateItem[] = [
   {
     sectionKey: 'consent',
     sectionTitle: 'Consent & Orientation',
-    prompt: 'Ask the student what name/pronouns they want used in notes and practice materials.',
-    helperText: 'Keep this teen-respectful and quick. Add details only if clinically useful.',
-    scriptText: 'What name would you like me to use in my notes today? Anything you want me to know before we start?',
+    prompt: 'Confirm the patient name and speech focus for today.',
+    helperText: 'Keep this brief: patient name, speech concern, and the sounds or speaking situations being checked.',
+    scriptText: 'Today we are focusing on your speech clarity and the sounds or speaking situations selected for this assessment.',
     kind: 'question',
     sortOrder: 20
   },
@@ -1004,7 +1004,6 @@ const buildAssessmentDraft = (assessment: Assessment, client: ClientProfile | un
     : 'none selected';
   const profileSummary = [
     assessment.studentAge ? `age ${assessment.studentAge}` : '',
-    assessment.studentGender ? `gender/voice context: ${assessment.studentGender}` : '',
     assessment.languageBackground ? `language/dialect: ${assessment.languageBackground}` : '',
     assessment.hearingStatus ? `hearing/listening: ${assessment.hearingStatus}` : ''
   ].filter(Boolean).join('; ') || 'profile fields not entered';
@@ -1055,8 +1054,7 @@ export function AssessmentTab() {
   const [studentSearch, setStudentSearch] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<Assessment['template']>('adolescent_speech_intelligibility');
   const [studentName, setStudentName] = useState('');
-  const [studentAge, setStudentAge] = useState('14');
-  const [studentGender, setStudentGender] = useState('');
+  const [studentAge, setStudentAge] = useState('');
   const [languageBackground, setLanguageBackground] = useState('');
   const [hearingStatus, setHearingStatus] = useState('');
   const [primaryConcern, setPrimaryConcern] = useState('Speech clarity is harder in class, conversation, or with unfamiliar listeners.');
@@ -1170,8 +1168,7 @@ export function AssessmentTab() {
   const resetForNewStudent = () => {
     setSelectedClientId('');
     setStudentName('');
-    setStudentAge('14');
-    setStudentGender('');
+    setStudentAge('');
     setLanguageBackground('');
     setHearingStatus('');
     setPrimaryConcern('Speech clarity is harder in class, conversation, or with unfamiliar listeners.');
@@ -1188,8 +1185,7 @@ export function AssessmentTab() {
     setSelectedClientId(client.id);
     setStudentName(client.displayName);
     const ageMatch = client.ageGroup?.match(/\d+/);
-    setStudentAge(latestAssessment?.studentAge?.toString() || ageMatch?.[0] || studentAge || '14');
-    setStudentGender(latestAssessment?.studentGender || '');
+    setStudentAge(latestAssessment?.studentAge?.toString() || ageMatch?.[0] || studentAge || '');
     setLanguageBackground(latestAssessment?.languageBackground || '');
     setHearingStatus(latestAssessment?.hearingStatus || '');
     setSetting(latestAssessment?.setting || 'Speech-language evaluation');
@@ -1226,10 +1222,9 @@ export function AssessmentTab() {
       id: createId(),
       displayName: trimmedName,
       initials: initialsFromName(trimmedName),
-      ageGroup: studentAge ? `${studentAge} years` : 'Adolescent',
+      ageGroup: studentAge ? `${studentAge} years` : 'Student',
       notes: [
         primaryConcern.trim(),
-        studentGender.trim() ? `Gender/voice context: ${studentGender.trim()}` : '',
         languageBackground.trim() ? `Language/dialect: ${languageBackground.trim()}` : '',
         hearingStatus.trim() ? `Hearing/listening: ${hearingStatus.trim()}` : ''
       ].filter(Boolean).join('\n') || undefined,
@@ -1274,7 +1269,6 @@ export function AssessmentTab() {
       clinicianNotes: clinicianNotes.trim() || undefined,
       timeBudgetMinutes,
       focusTargets,
-      studentGender: studentGender.trim() || undefined,
       languageBackground: languageBackground.trim() || undefined,
       hearingStatus: hearingStatus.trim() || undefined,
       diagnosticFlags,
@@ -1308,7 +1302,6 @@ export function AssessmentTab() {
       clientId,
       template: templateDefinition.id,
       studentAge: Number.isFinite(ageNumber) ? ageNumber : undefined,
-      studentGender: studentGender.trim() || undefined,
       languageBackground: languageBackground.trim() || undefined,
       hearingStatus: hearingStatus.trim() || undefined,
       diagnosticFlags: selectedDiagnosticFlags,
@@ -1367,8 +1360,7 @@ export function AssessmentTab() {
     setActiveAssessmentId(assessment.id);
     setSelectedClientId(assessment.clientId);
     setSelectedTemplate(assessment.template);
-    setStudentAge(assessment.studentAge?.toString() || '14');
-    setStudentGender(assessment.studentGender || '');
+    setStudentAge(assessment.studentAge?.toString() || '');
     setLanguageBackground(assessment.languageBackground || '');
     setHearingStatus(assessment.hearingStatus || '');
     setPrimaryConcern(assessment.primaryConcern || '');
@@ -1467,7 +1459,6 @@ export function AssessmentTab() {
       clinicianNotes,
       timeBudgetMinutes,
       focusTargets,
-      studentGender: studentGender.trim() || undefined,
       languageBackground: languageBackground.trim() || undefined,
       hearingStatus: hearingStatus.trim() || undefined,
       diagnosticFlags,
@@ -1489,7 +1480,6 @@ export function AssessmentTab() {
       homePractice: supportPlanDraft,
       timeBudgetMinutes,
       focusTargets,
-      studentGender: studentGender.trim() || undefined,
       languageBackground: languageBackground.trim() || undefined,
       hearingStatus: hearingStatus.trim() || undefined,
       diagnosticFlags,
@@ -1671,50 +1661,8 @@ export function AssessmentTab() {
                   className={`mt-2 ${brightInputClass}`}
                 />
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600" htmlFor="assessment-age">
-                  Age
-                  <input
-                    id="assessment-age"
-                    value={studentAge}
-                    onChange={event => setStudentAge(event.target.value)}
-                    inputMode="numeric"
-                    className={`mt-2 ${brightInputClass}`}
-                  />
-                </label>
-                <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600" htmlFor="assessment-gender">
-                  Gender / voice context
-                  <input
-                    id="assessment-gender"
-                    value={studentGender}
-                    onChange={event => setStudentGender(event.target.value)}
-                    placeholder="Optional"
-                    className={`mt-2 ${brightInputClass}`}
-                  />
-                </label>
-              </div>
-              <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600" htmlFor="assessment-language">
-                Language / dialect
-                <input
-                  id="assessment-language"
-                  value={languageBackground}
-                  onChange={event => setLanguageBackground(event.target.value)}
-                  placeholder="Example: English, Spanish at home, regional dialect"
-                  className={`mt-2 ${brightInputClass}`}
-                />
-              </label>
-              <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600" htmlFor="assessment-hearing">
-                Hearing / listening access
-                <input
-                  id="assessment-hearing"
-                  value={hearingStatus}
-                  onChange={event => setHearingStatus(event.target.value)}
-                  placeholder="Example: passed screen, DHH, classroom noise concern"
-                  className={`mt-2 ${brightInputClass}`}
-                />
-              </label>
               <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600" htmlFor="assessment-concern">
-                Main concern
+                Speech focus
                 <textarea
                   id="assessment-concern"
                   value={primaryConcern}
@@ -1781,46 +1729,14 @@ export function AssessmentTab() {
         {launchPhase === 'profile' && (
           <section className={`${brightCardClass} space-y-4`}>
             <h3 className="font-black text-lg text-slate-950">{selectedStudentLabel}</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600" htmlFor="assessment-profile-age">
-                Age
-                <input
-                  id="assessment-profile-age"
-                  value={studentAge}
-                  onChange={event => setStudentAge(event.target.value)}
-                  inputMode="numeric"
-                  className={`mt-2 ${brightInputClass}`}
-                />
-              </label>
-              <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600" htmlFor="assessment-profile-gender">
-                Gender / voice context
-                <input
-                  id="assessment-profile-gender"
-                  value={studentGender}
-                  onChange={event => setStudentGender(event.target.value)}
-                  placeholder="Optional"
-                  className={`mt-2 ${brightInputClass}`}
-                />
-              </label>
-            </div>
-            <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600 block" htmlFor="assessment-profile-language">
-              Language / dialect
-              <input
-                id="assessment-profile-language"
-                value={languageBackground}
-                onChange={event => setLanguageBackground(event.target.value)}
-                placeholder="Optional"
-                className={`mt-2 ${brightInputClass}`}
-              />
-            </label>
-            <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600 block" htmlFor="assessment-profile-hearing">
-              Hearing / listening access
-              <input
-                id="assessment-profile-hearing"
-                value={hearingStatus}
-                onChange={event => setHearingStatus(event.target.value)}
-                placeholder="Optional"
-                className={`mt-2 ${brightInputClass}`}
+            <label className="text-left text-[10px] font-black uppercase tracking-wider text-slate-600 block" htmlFor="assessment-profile-concern">
+              Speech focus
+              <textarea
+                id="assessment-profile-concern"
+                value={primaryConcern}
+                onChange={event => setPrimaryConcern(event.target.value)}
+                rows={3}
+                className={`mt-2 ${brightInputClass} select-text`}
               />
             </label>
             {clientAssessments.length > 0 && (
