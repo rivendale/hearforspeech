@@ -1,22 +1,24 @@
 ## Summary
 
-Fixes a regression where the Assess, Session, and Data pages could no longer scroll on mobile or desktop.
+Adds extra bottom scroll breathing room so fixed navigation does not cover final page content, plus in-app refresh/cache controls to make latest-version reloads easier.
 
 ## What changed
 
-- Adds explicit `100dvh` app-shell sizing.
-- Makes the main app area the dedicated scroll container.
-- Adds `min-h-0` to the flex child that needs to scroll.
-- Enables momentum/touch scrolling and vertical pan gestures for the main content.
+- Adds a larger safe-area-aware bottom reserve for the app scroll container.
+- Adds an end-of-scroll spacer so final cards can scroll above the bottom nav.
+- Adds safe-area padding to the fixed bottom navigation.
+- Adds **Refresh Latest App** and **Clear App Cache** controls in the Analysis Readiness panel.
+- Updates PWA generation with `skipWaiting`, `clientsClaim`, and outdated-cache cleanup.
+- Documents latest-version refresh steps in README.
 
 ## Why this helps SLPs
 
-The core pages are usable again on phone, tablet, and desktop: clinicians can scroll through long assessment/session/data workflows with touch or mouse wheel.
+Therapists can scroll all the way to the final text/buttons on Assess, Session, and Data without the bottom nav hiding content. If a phone or installed PWA keeps showing an older version, the update controls are now visible in-app.
 
 ## Data/privacy notes
 
-- Layout-only change.
-- No data model, storage, export, recording, or backend behavior changes.
+- Cache clearing only targets app shell caches, not IndexedDB patient/session records.
+- No recording, export, analysis, backend, or clinical data model behavior changes.
 
 ## Testing performed
 
@@ -25,4 +27,4 @@ The core pages are usable again on phone, tablet, and desktop: clinicians can sc
 
 ## Known limitations / follow-up ideas
 
-- Browser/device print sheets can still temporarily alter viewport behavior while printing; this fix restores normal app scrolling after normal navigation.
+- Browser/device PWA caching can still require closing and reopening the installed app on some phones after major updates.

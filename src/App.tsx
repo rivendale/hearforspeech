@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Activity, Cpu, X, Sparkles, BarChart3, ClipboardList, Download, Brain, Home } from 'lucide-react';
+import { Shield, Activity, Cpu, X, Sparkles, BarChart3, ClipboardList, Download, Brain, Home, RefreshCw } from 'lucide-react';
 import { useStore } from './store/useStore';
 import type { AppTab } from './store/useStore';
 import { db, type BackupPayload, type SessionLog } from './db/database';
@@ -149,6 +149,8 @@ export default function App() {
   const [analysisCapabilities, setAnalysisCapabilities] = useState<AnalysisCapabilities | null>(null);
   const [analysisApiError, setAnalysisApiError] = useState('');
   const [analysisApiChecking, setAnalysisApiChecking] = useState(true);
+  const [appRefreshStatus, setAppRefreshStatus] = useState('');
+  const [isRefreshingApp, setIsRefreshingApp] = useState(false);
   const [isIOS] = useState(() => {
     if (typeof navigator === 'undefined') return false;
     const userAgent = navigator.userAgent || navigator.vendor || (window as Window & { opera?: string }).opera || '';
@@ -518,6 +520,57 @@ export default function App() {
     }
   };
 
+  const updateServiceWorkers = async () => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map(async (registration) => {
+      await registration.update();
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+    }));
+  };
+
+  const refreshLatestApp = async () => {
+    setIsRefreshingApp(true);
+    setAppRefreshStatus('Checking for the latest app files...');
+
+    try {
+      await updateServiceWorkers();
+      setAppRefreshStatus('Reloading the latest version...');
+      window.setTimeout(() => window.location.reload(), 250);
+    } catch (error) {
+      console.error('App refresh failed:', error);
+      setIsRefreshingApp(false);
+      setAppRefreshStatus('Could not refresh automatically. Try closing and reopening the app.');
+    }
+  };
+
+  const clearAppShellCache = async () => {
+    const confirmed = window.confirm(
+      'Clear only the app shell cache and reload? Patient/session data stays saved in this browser.'
+    );
+    if (!confirmed) return;
+
+    setIsRefreshingApp(true);
+    setAppRefreshStatus('Clearing cached app files...');
+
+    try {
+      if (typeof caches !== 'undefined') {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)));
+      }
+      await updateServiceWorkers();
+      setAppRefreshStatus('Cache cleared. Reloading fresh app files...');
+      window.setTimeout(() => window.location.reload(), 250);
+    } catch (error) {
+      console.error('Cache clear failed:', error);
+      setIsRefreshingApp(false);
+      setAppRefreshStatus('Could not clear app cache automatically. Browser settings may still offer site cache controls.');
+    }
+  };
+
   // Check URL hash for handoff data on load
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -793,7 +846,7 @@ export default function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-full sm:max-w-lg mx-auto bg-slate-950/95 backdrop-blur-lg border-t border-slate-900 flex justify-around p-2.5 z-50 rounded-t-2xl shadow-2xl">
+      <nav className="hfs-bottom-nav fixed bottom-0 left-0 right-0 max-w-full sm:max-w-lg mx-auto bg-slate-950/95 backdrop-blur-lg border-t border-slate-900 flex justify-around p-2.5 z-50 rounded-t-2xl shadow-2xl">
         <button
           onClick={() => setActiveTab('home')}
           className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
@@ -893,7 +946,7 @@ export default function App() {
       {/* AI Calibration Diagnostic Checklist Modal */}
       {showCalibrationModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-800 border border-slate-700 max-w-sm w-full p-6 rounded-3xl shadow-2xl space-y-5">
+          <div className="bg-slate-800 border border-slate-700 max-w-sm w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 rounded-3xl shadow-2xl space-y-5">
             <div className="flex justify-between items-start border-b border-slate-700 pb-3">
               <div className="flex items-center gap-2">
                 <Brain className="text-indigo-400" size={20} />
@@ -984,6 +1037,41 @@ export default function App() {
                 </p>
               </div>
             )}
+
+            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-2xl text-left space-y-3">
+              <div className="flex items-start gap-2">
+                <RefreshCw className={`text-blue-400 shrink-0 ${isRefreshingApp ? 'animate-spin' : ''}`} size={17} />
+                <div>
+                  <span className="font-bold block uppercase tracking-wider text-[11px] text-blue-100">App update tools</span>
+                  <p className="text-[11px] text-blue-50/85 leading-relaxed mt-1">
+                    Use these if the installed app or browser is still showing an older version. Clinical data stays local and is not cleared.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={refreshLatestApp}
+                  disabled={isRefreshingApp}
+                  className="min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-[10px] font-black uppercase tracking-wider transition active:scale-98"
+                >
+                  Refresh Latest App
+                </button>
+                <button
+                  type="button"
+                  onClick={clearAppShellCache}
+                  disabled={isRefreshingApp}
+                  className="min-h-[44px] rounded-2xl bg-white/10 border border-blue-300/40 hover:bg-white/15 disabled:opacity-60 text-blue-50 text-[10px] font-black uppercase tracking-wider transition active:scale-98"
+                >
+                  Clear App Cache
+                </button>
+              </div>
+              {appRefreshStatus && (
+                <p className="text-[10px] text-blue-50/80 leading-relaxed" role="status">
+                  {appRefreshStatus}
+                </p>
+              )}
+            </div>
 
             <button
               onClick={() => setShowCalibrationModal(false)}

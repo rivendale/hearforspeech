@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+:root {
+  --hfs-bottom-nav-space: calc(8.75rem + env(safe-area-inset-bottom, 0px));
+  --hfs-scroll-end-space: calc(2.5rem + env(safe-area-inset-bottom, 0px));
+}
+
 *,
 *::before,
 *::after {
@@ -42,10 +47,22 @@ body {
 
 .hfs-app-main {
   min-height: 0;
+  padding-bottom: var(--hfs-bottom-nav-space) !important;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
+  scroll-padding-bottom: var(--hfs-bottom-nav-space);
   touch-action: pan-y;
+}
+
+.hfs-app-main::after {
+  content: "";
+  display: block;
+  flex: 0 0 var(--hfs-scroll-end-space);
+}
+
+.hfs-bottom-nav {
+  padding-bottom: calc(0.625rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* Prevent native tap highlight overlays on iOS and prevent accidental text selections */

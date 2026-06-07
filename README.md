@@ -12,6 +12,17 @@ Hear for Speech supports SLP judgment. It does not diagnose, prescribe treatment
 
 ---
 
+## Getting the Latest App Version
+
+Hear for Speech is installable and offline-capable, so browsers may keep app files cached for fast startup. If the installed app or browser tab looks stale:
+
+1. Open the **Analysis Ready** badge in the top-right header.
+2. Use **Refresh Latest App** to ask the service worker to update and reload.
+3. Use **Clear App Cache** if the old version still appears. This clears cached app files only; patient/session data stored in the browser is not cleared.
+4. Close and reopen the installed PWA if the phone still shows an older screen.
+
+---
+
 ## Guided SLP Workflow
 
 The app opens to a no-doc **Home** screen:
