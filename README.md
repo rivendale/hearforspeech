@@ -144,11 +144,15 @@ Each assessment line includes:
 
 Assessment audio is saved locally through the same recording storage used elsewhere in the app. If local security is enabled, recordings are encrypted using the existing local master key flow.
 
-### Optional Advanced Analysis Backend
+### Analysis Ready Backend
 
-HearForSpeech can optionally connect to the separate backend repo, [`rivendale/hearforspeech-server`](https://github.com/rivendale/hearforspeech-server), for acoustic metrics beyond local recording and checklist scoring.
+HearForSpeech connects to the separate backend repo, [`rivendale/hearforspeech-server`](https://github.com/rivendale/hearforspeech-server), for acoustic metrics beyond local recording and checklist scoring. The hosted default is:
 
-To enable the panel locally, create `.env`:
+```bash
+https://api.hearforspeech.com
+```
+
+The top-right **Analysis Ready** badge checks `/v1/capabilities` and confirms whether the backend and Parselmouth acoustic engine are reachable. For local development or clinic self-hosting, create `.env`:
 
 ```bash
 VITE_HFS_ANALYSIS_API_URL=https://api.hearforspeech.com
@@ -156,9 +160,9 @@ VITE_HFS_ANALYSIS_API_URL=https://api.hearforspeech.com
 VITE_HFS_ANALYSIS_API_KEY=
 ```
 
-When an assessment line has a linked recording, the SLP can open **Run Advanced Analysis**, confirm consent, upload the latest recording for temporary processing, and insert returned metrics into editable notes.
+When an assessment has recording consent confirmed and **Auto analyze recordings** is on, newly recorded assessment lines upload in the background for temporary processing. The line card changes to **Analysis ready** when metrics return, and the SLP can choose whether to insert those metrics into editable notes.
 
-The backend is optional. Audio leaves the device only when the clinician explicitly runs the analysis. Returned metrics are supporting acoustic descriptors, not automated diagnoses or eligibility decisions.
+The backend uses temporary processing and returns supporting acoustic descriptors. It does not diagnose, determine eligibility, or replace SLP interpretation. If the backend is offline, the guided assessment, recordings, checklist scoring, drafts, printing, and exports still work from local browser storage.
 
 The generated assessment summary is editable and conservative. It summarizes checklist entries, recordings, sound probes by sound/word position, cueing/stimulability, functional participation contexts, and “Consider...” follow-up flags. The SLP remains responsible for reviewing recordings, selecting formal measures when required, interpreting findings, and writing final diagnostic conclusions.
 
