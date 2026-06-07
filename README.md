@@ -73,19 +73,36 @@ Use the **Assess** tab when the SLP needs a diagnostic-style walkthrough for an 
 
 The built-in Assessment Coach offers several teen-focused paths:
 
-### Phone-First Guided Assessment
+### Initial Diagnostic in a Few Taps
 
 Use **Assess** when the SLP has only a phone/tablet and needs to start quickly:
 
-1. Tap a quick-start card such as **I have 10 minutes**, **14-year-old diagnostic**, **/r/ deep dive**, or **School participation**.
-2. Select/create the student, choose the time available, and tap focus chips for articulation, intelligibility, connected speech, cueing response, Listener Check, adult input, or practice planning.
-3. Add an optional custom target such as “vocalic /r/ in conversation” or “classroom presentation clarity.”
-4. Follow each **Do this now** card: say the script, record if useful, listen for the listed observations, tap a result, and add one-tap notes.
-5. Use the SLP scratchpad for fast observations, parent questions, therapy ideas, and follow-up probes.
+1. Tap **New Patient** or **Load Patient**.
+2. Enter or confirm the key profile details: age, optional gender/voice context, language/dialect context, hearing/listening access, and the main concern.
+3. Choose one diagnostic path:
+   - **I have 10 minutes**
+   - **14-year-old diagnostic**
+   - **/r/ deep dive**
+   - **School participation**
+   - **Voice / resonance check**
+   - **Noise / listening check**
+4. Confirm recording/assessment consent.
+5. Follow each line: say the teen-friendly script, record when useful, listen for the listed observations, tap a result, and add one-tap notes.
 6. Add custom lines during the assessment whenever the clinician hears something unexpected.
 7. Generate editable diagnostic summary, recommendations, and therapy/home-practice starter text.
 
 The assessment workflow is checklist-driven and local-first. It supports clinical organization, documentation, and therapy planning, but the SLP remains responsible for interpretation, diagnosis, eligibility decisions, and any standardized assessment requirements.
+
+The new diagnostic launcher adds local-only checklist lenses inspired by common SLP assessment workflows:
+
+- Language/dialect context
+- Hearing and listening access
+- Voice, pitch, loudness, vocal effort, and resonance screening prompts
+- Functional listening in noise or at a distance
+- Student, caregiver, teacher, and Listener Check impact ratings
+- Conservative “Consider...” follow-up flags for formal measures, referrals, or deeper probes
+
+These are prompts and documentation aids, not automated diagnoses. Open-source tools such as forced aligners, phoneme recognizers, or acoustic-analysis libraries may be useful future research paths, but many require native Python/server/WASM work and are not added to the browser app unless they can remain local-first, practical, and clinician-controlled.
 
 ### Printable Student / Caregiver Handouts
 
@@ -259,7 +276,24 @@ Exported backups are JSON payloads. Older backups with only `logs` and `recordin
     "guidedSessions": [],
     "trials": [],
     "listenerChecks": [],
-    "assessments": [],
+    "assessments": [
+      {
+        "id": "assessment-id",
+        "clientId": "client-id",
+        "template": "adolescent_speech_intelligibility",
+        "studentAge": 14,
+        "studentGender": "optional clinician-entered context",
+        "languageBackground": "English; Spanish at home",
+        "hearingStatus": "passed recent screen; noise concern",
+        "diagnosticFlags": ["bilingual_dialect", "hearing_access", "noise_distance"],
+        "diagnosticQuestionnaires": ["student_impact", "listener_check"],
+        "consentConfirmed": true,
+        "status": "draft",
+        "startedAt": "2026-06-06T17:00:00.000Z",
+        "createdAt": "2026-06-06T17:00:00.000Z",
+        "updatedAt": "2026-06-06T17:00:00.000Z"
+      }
+    ],
     "assessmentItems": [],
     "logs": [
       {
