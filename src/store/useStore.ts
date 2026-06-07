@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 
+export type AppTab = 'home' | 'session' | 'assessment' | 'visualizer' | 'tracker' | 'protocol' | 'export';
+
 interface AppState {
-  activeTab: 'session' | 'assessment' | 'visualizer' | 'tracker' | 'protocol' | 'export';
-  setActiveTab: (tab: 'session' | 'assessment' | 'visualizer' | 'tracker' | 'protocol' | 'export') => void;
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
   hasLocalAI: boolean;
   setHasLocalAI: (has: boolean) => void;
   aiStatus: string;
@@ -18,7 +20,7 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set) => ({
-  activeTab: 'session',
+  activeTab: 'home',
   setActiveTab: (tab) => set({ activeTab: tab }),
   hasLocalAI: false,
   setHasLocalAI: (has) => set({ hasLocalAI: has }),

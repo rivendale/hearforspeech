@@ -44,6 +44,39 @@ export interface AdvancedAnalysisResult {
   clinical_notice: string;
 }
 
+export interface AssessmentSessionAnalysisItemInput {
+  id: string;
+  prompt: string;
+  section_title?: string;
+  kind?: string;
+  result?: string;
+  notes?: string;
+  cue_level?: string;
+  recording_filename?: string;
+}
+
+export interface AssessmentSessionAnalysisItemResult {
+  item_id: string;
+  prompt: string;
+  status: 'complete' | 'no_recording' | 'failed';
+  analysis: AdvancedAnalysisResult | null;
+  warnings: string[];
+  summary_facts: string[];
+}
+
+export interface AssessmentSessionAnalysisResult {
+  job_id: string;
+  status: 'complete' | 'partial' | 'failed';
+  assessment_id?: string | null;
+  client_label?: string | null;
+  total_items: number;
+  analyzed_items: number;
+  item_results: AssessmentSessionAnalysisItemResult[];
+  summary_ready_facts: string[];
+  warnings: string[];
+  clinical_notice: string;
+}
+
 export const PUBLIC_ANALYSIS_API_URL = 'https://api.hearforspeech.com';
 
 const trimTrailingSlash = (url: string) => url.replace(/\/+$/, '');
@@ -143,6 +176,58 @@ export async function submitAdvancedAnalysis({
   }
 
   return response.json() as Promise<AdvancedAnalysisResult>;
+}
+
+export async function submitAssessmentSessionAnalysis({
+  apiUrl,
+  apiKey,
+  assessment,
+  recordings
+}: {
+  apiUrl: string;
+  apiKey?: string;
+  assessment: {
+    assessment_id?: string;
+    client_label?: string;
+    items: AssessmentSessionAnalysisItemInput[];
+  };
+  recordings: Array<{
+    itemId: string;
+    audio: Blob;
+    filename?: string;
+  }>;
+}): Promise<AssessmentSessionAnalysisResult> {
+  const endpoint = `${trimTrailingSlash(apiUrl)}/v1/analysis/assessment-session`;
+  const formData = new FormData();
+  formData.append('assessment_json', JSON.stringify(assessment));
+  formData.append('consent_confirmed', 'true');
+  formData.append('retention_policy', 'temporary');
+
+  recordings.forEach(recording => {
+    formData.append('files', recording.audio, recording.filename || `${recording.itemId}.webm`);
+  });
+
+  const headers: HeadersInit = {};
+  if (apiKey) headers['X-HFS-API-Key'] = apiKey;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+
+  if (!response.ok) {
+    let message = `Assessment session analysis failed (${response.status}).`;
+    try {
+      const error = await response.json();
+      if (error?.detail) message = error.detail;
+    } catch {
+      // Keep default message.
+    }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<AssessmentSessionAnalysisResult>;
 }
 
 const formatNumber = (value: number | null | undefined, digits = 2) => (

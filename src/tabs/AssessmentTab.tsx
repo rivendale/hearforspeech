@@ -32,6 +32,7 @@ import {
   formatAdvancedAnalysisForNotes,
   getAnalysisApiKey,
   getDefaultAnalysisApiUrl,
+  submitAssessmentSessionAnalysis,
   submitAdvancedAnalysis,
   type AnalysisCapabilities,
   type AdvancedAnalysisResult
@@ -74,6 +75,7 @@ type QuickStartPreset = {
 
 const FOCUS_CLASS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300';
 const BUTTON_CLASS = `min-h-[48px] rounded-2xl font-extrabold transition active:scale-98 ${FOCUS_CLASS}`;
+const ASSESSMENT_INTENT_KEY = 'hfs_assessment_start_intent';
 
 const CUE_LEVELS: { value: CueLevel; label: string }[] = [
   { value: 'independent', label: 'Independent' },
@@ -154,8 +156,8 @@ const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id: 'teen_full',
-    title: '14-year-old diagnostic',
-    subtitle: 'Teen-friendly broad articulation, intelligibility, participation, and stimulability guide.',
+    title: 'Full articulation / intelligibility',
+    subtitle: 'Broad articulation, intelligibility, participation, and stimulability guide.',
     template: 'adolescent_speech_intelligibility',
     concern: 'Adolescent speech clarity and intelligibility across school, conversation, and unfamiliar listeners.',
     minutes: 30,
@@ -175,6 +177,18 @@ const QUICK_START_PRESETS: QuickStartPreset[] = [
     setting: '/r/ diagnostic probe',
     diagnosticFlags: ['school_impact'],
     questionnaires: ['listener_check']
+  },
+  {
+    id: 'connected_speech',
+    title: 'Connected speech',
+    subtitle: 'Conversation, narrative, explanation, intelligibility, and repair strategy guide.',
+    template: 'connected_speech_participation',
+    concern: 'Speech clarity and intelligibility across connected speech, conversation, explanation, and listener repair.',
+    minutes: 20,
+    focusTargets: ['intelligibility', 'connected_speech', 'school_participation', 'listener_check', 'practice_plan'],
+    setting: 'Connected speech assessment',
+    diagnosticFlags: ['noise_distance', 'school_impact'],
+    questionnaires: ['student_impact', 'listener_check']
   },
   {
     id: 'school_voice',
@@ -211,6 +225,18 @@ const QUICK_START_PRESETS: QuickStartPreset[] = [
     setting: 'Functional listening and intelligibility check',
     diagnosticFlags: ['hearing_access', 'noise_distance', 'school_impact'],
     questionnaires: ['student_impact', 'listener_check']
+  },
+  {
+    id: 'listener_check_only',
+    title: 'Listener Check',
+    subtitle: 'Simple clear/unclear unfamiliar-listener scoring without exposing private notes.',
+    template: 'connected_speech_participation',
+    concern: 'Functional intelligibility check with listener clear/unclear scoring and confidence rating.',
+    minutes: 10,
+    focusTargets: ['intelligibility', 'connected_speech', 'listener_check', 'practice_plan'],
+    setting: 'Listener Check',
+    diagnosticFlags: ['noise_distance'],
+    questionnaires: ['listener_check']
   }
 ];
 
@@ -1106,6 +1132,46 @@ const buildAssessmentDraft = (assessment: Assessment, client: ClientProfile | un
   return { summary, recommendations, supportPlan };
 };
 
+const buildSchoolAssessmentNote = (
+  assessment: Assessment,
+  client: ClientProfile | undefined,
+  items: AssessmentItem[],
+  summary: string,
+  recommendations: string
+) => {
+  const recordingCount = items.reduce((count, item) => count + (item.recordingIds?.length || 0), 0);
+  const analyzedCount = items.filter(item => item.advancedAnalysis?.status === 'complete').length;
+  const completedCount = items.filter(item => item.status === 'complete').length;
+
+  return [
+    `Student/Client: ${client?.displayName || 'Student'}`,
+    `Assessment focus: ${assessment.primaryConcern || 'Speech clarity/intelligibility'}`,
+    `Service/session summary: Completed ${completedCount}/${items.length} guided diagnostic line(s), including ${recordingCount} linked recording(s) and ${analyzedCount} backend acoustic metric set(s) for SLP review.`,
+    `Objective data: ${summary.split('\n\n').slice(4, 9).join('\n')}`,
+    `Clinical observation: Review the recordings, checklist observations, and acoustic descriptors together before writing final interpretation.`,
+    `Plan/next step:\n${recommendations}`,
+    'Clinical caution: This note is an editable SLP draft and does not diagnose, determine eligibility, or replace clinical judgment.'
+  ].join('\n\n');
+};
+
+const buildSoapAssessmentNote = (
+  assessment: Assessment,
+  client: ClientProfile | undefined,
+  items: AssessmentItem[],
+  recommendations: string
+) => {
+  const analyzedCount = items.filter(item => item.advancedAnalysis?.status === 'complete').length;
+  const completedCount = items.filter(item => item.status === 'complete').length;
+  const cueItems = items.filter(item => item.cueLevel || item.kind === 'stimulability');
+
+  return [
+    `S: ${client?.displayName || 'Student'} participated in a guided speech assessment focused on ${assessment.primaryConcern || 'speech clarity/intelligibility'}.`,
+    `O: Completed ${completedCount}/${items.length} line(s). ${analyzedCount} recording(s) have backend acoustic descriptors available for SLP review. Cueing/stimulability lines: ${cueItems.length}.`,
+    'A: Data should be interpreted by the SLP alongside recordings, checklist responses, listener-check information, and any required standardized or district measures.',
+    `P:\n${recommendations}`
+  ].join('\n\n');
+};
+
 export function AssessmentTab() {
   const { masterKey } = useStore();
   const [clients, setClients] = useState<ClientProfile[]>([]);
@@ -1132,6 +1198,8 @@ export function AssessmentTab() {
   const [sectionIndex, setSectionIndex] = useState(0);
   const [summaryDraft, setSummaryDraft] = useState('');
   const [recommendationsDraft, setRecommendationsDraft] = useState('');
+  const [schoolNoteDraft, setSchoolNoteDraft] = useState('');
+  const [soapNoteDraft, setSoapNoteDraft] = useState('');
   const [supportPlanDraft, setSupportPlanDraft] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
   const [recordingItemId, setRecordingItemId] = useState<string | null>(null);
@@ -1144,6 +1212,8 @@ export function AssessmentTab() {
   const [analysisCapabilities, setAnalysisCapabilities] = useState<AnalysisCapabilities | null>(null);
   const [analysisApiStatus, setAnalysisApiStatus] = useState<'checking' | 'ready' | 'offline'>('checking');
   const [analysisApiMessage, setAnalysisApiMessage] = useState('Checking analysis API...');
+  const [batchAnalysisStatus, setBatchAnalysisStatus] = useState<'idle' | 'running' | 'complete' | 'error'>('idle');
+  const [batchAnalysisMessage, setBatchAnalysisMessage] = useState('');
   const [analysisStatusByItem, setAnalysisStatusByItem] = useState<Record<string, AnalysisStatus>>({});
   const [analysisResultsByItem, setAnalysisResultsByItem] = useState<Record<string, AdvancedAnalysisResult>>({});
   const [analysisErrorsByItem, setAnalysisErrorsByItem] = useState<Record<string, string>>({});
@@ -1211,6 +1281,23 @@ export function AssessmentTab() {
   const analyzedCount = analyzableItems.filter(item => (
     analysisStatusByItem[item.id] === 'complete' || item.advancedAnalysis?.status === 'complete'
   )).length;
+  const analysisQueueRows = analyzableItems.map(item => {
+    const status = analysisStatusByItem[item.id] || item.advancedAnalysis?.status || 'not_requested';
+    const label = status === 'complete'
+      ? 'Ready'
+      : status === 'running'
+        ? 'Analyzing'
+        : status === 'error'
+          ? 'Needs review'
+          : autoAnalysisEnabled
+            ? 'Queued'
+            : 'Recorded';
+    return {
+      id: item.id,
+      title: item.sectionTitle,
+      label
+    };
+  });
 
   useEffect(() => {
     let active = true;
@@ -1358,6 +1445,114 @@ export function AssessmentTab() {
     setLaunchPhase('ready');
   };
 
+  useEffect(() => {
+    const rawIntent = localStorage.getItem(ASSESSMENT_INTENT_KEY);
+    if (!rawIntent) return;
+
+    let intent: {
+      phase?: DiagnosticLaunchPhase;
+      presetId?: string;
+      clientId?: string;
+      assessmentId?: string;
+    } = {};
+
+    try {
+      intent = JSON.parse(rawIntent);
+    } catch {
+      intent = { phase: 'patient_choice' };
+    }
+
+    const requestedAssessment = intent.assessmentId
+      ? assessments.find(assessment => assessment.id === intent.assessmentId)
+      : undefined;
+    if (intent.assessmentId && !requestedAssessment && assessments.length === 0) return;
+
+    const timeoutId = window.setTimeout(() => {
+      localStorage.removeItem(ASSESSMENT_INTENT_KEY);
+      setActiveAssessmentId('');
+
+      if (requestedAssessment) {
+        setActiveAssessmentId(requestedAssessment.id);
+        setSelectedClientId(requestedAssessment.clientId);
+        setSelectedTemplate(requestedAssessment.template);
+        setStudentAge(requestedAssessment.studentAge?.toString() || '');
+        setLanguageBackground(requestedAssessment.languageBackground || '');
+        setHearingStatus(requestedAssessment.hearingStatus || '');
+        setPrimaryConcern(requestedAssessment.primaryConcern || '');
+        setSetting(requestedAssessment.setting || 'Speech-language evaluation');
+        setTimeBudgetMinutes(requestedAssessment.timeBudgetMinutes || 20);
+        setFocusTargets(requestedAssessment.focusTargets?.length ? requestedAssessment.focusTargets : TEMPLATE_FOCUS[requestedAssessment.template]);
+        setDiagnosticFlags(requestedAssessment.diagnosticFlags || []);
+        setQuestionnaireFlags(requestedAssessment.diagnosticQuestionnaires || []);
+        setClinicianNotes(requestedAssessment.clinicianNotes || '');
+        setConsentConfirmed(requestedAssessment.consentConfirmed);
+        const assessmentItems = items
+          .filter(item => item.assessmentId === requestedAssessment.id)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const firstIncomplete = assessmentItems.find(item => item.status !== 'complete');
+        const targetSection = firstIncomplete?.sectionKey || 'summary';
+        const sectionKeys = Array.from(new Set(assessmentItems.map(item => item.sectionKey)));
+        setSectionIndex(Math.max(0, sectionKeys.indexOf(targetSection)));
+        setSummaryDraft(requestedAssessment.summary || '');
+        setRecommendationsDraft(requestedAssessment.recommendations || '');
+        setSchoolNoteDraft(requestedAssessment.schoolNote || '');
+        setSoapNoteDraft(requestedAssessment.soapNote || '');
+        setSupportPlanDraft(requestedAssessment.therapyIdeas || requestedAssessment.homePractice || '');
+        return;
+      }
+
+      const requestedClient = intent.clientId
+        ? clients.find(client => client.id === intent.clientId)
+        : undefined;
+      if (requestedClient) {
+        const latestAssessment = assessments
+          .filter(assessment => assessment.clientId === requestedClient.id)
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+        setSelectedClientId(requestedClient.id);
+        setStudentName(requestedClient.displayName);
+        const ageMatch = requestedClient.ageGroup?.match(/\d+/);
+        setStudentAge(latestAssessment?.studentAge?.toString() || ageMatch?.[0] || '');
+        setLanguageBackground(latestAssessment?.languageBackground || '');
+        setHearingStatus(latestAssessment?.hearingStatus || '');
+        setSetting(latestAssessment?.setting || 'Speech-language evaluation');
+        setPrimaryConcern(latestAssessment?.primaryConcern || requestedClient.notes?.split('\n')[0] || 'Speech clarity is harder in class, conversation, or with unfamiliar listeners.');
+        setLaunchPhase('profile');
+      }
+
+      if (intent.phase === 'new_student') {
+        setSelectedClientId('');
+        setStudentName('');
+        setStudentAge('');
+        setLanguageBackground('');
+        setHearingStatus('');
+        setClinicianNotes('');
+        setConsentConfirmed(false);
+        setLaunchPhase('new_student');
+      } else if (intent.phase === 'load_student') {
+        setLaunchPhase('load_student');
+      } else if (intent.phase === 'diagnostic') {
+        setLaunchPhase('diagnostic');
+      } else if (intent.phase === 'patient_choice') {
+        setLaunchPhase('patient_choice');
+      }
+
+      if (intent.presetId) {
+        const preset = QUICK_START_PRESETS.find(item => item.id === intent.presetId);
+        if (preset) {
+          setSelectedTemplate(preset.template);
+          setPrimaryConcern(preset.concern);
+          setSetting(preset.setting);
+          setTimeBudgetMinutes(preset.minutes);
+          setFocusTargets(preset.focusTargets);
+          setDiagnosticFlags(preset.diagnosticFlags || []);
+          setQuestionnaireFlags(preset.questionnaires || []);
+        }
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [assessments, clients, items]);
+
   const toggleFocusTarget = (targetId: string) => {
     setFocusTargets(prev => (
       prev.includes(targetId)
@@ -1463,6 +1658,8 @@ export function AssessmentTab() {
     setSectionIndex(0);
     setSummaryDraft('');
     setRecommendationsDraft('');
+    setSchoolNoteDraft('');
+    setSoapNoteDraft('');
     setSupportPlanDraft('');
   };
 
@@ -1490,6 +1687,8 @@ export function AssessmentTab() {
     setSectionIndex(Math.max(0, sectionKeys.indexOf(targetSection)));
     setSummaryDraft(assessment.summary || '');
     setRecommendationsDraft(assessment.recommendations || '');
+    setSchoolNoteDraft(assessment.schoolNote || '');
+    setSoapNoteDraft(assessment.soapNote || '');
     setSupportPlanDraft(assessment.therapyIdeas || assessment.homePractice || '');
   };
 
@@ -1664,6 +1863,105 @@ export function AssessmentTab() {
     }
   };
 
+  const runBatchAnalysisForAssessment = async () => {
+    if (!activeAssessment?.consentConfirmed) {
+      alert('Recording consent must be confirmed before uploading assessment audio.');
+      return;
+    }
+    if (!isAnalysisReady) {
+      alert(`Analysis API is not ready yet. ${analysisApiMessage}`);
+      return;
+    }
+
+    const recordedItems = activeItems.filter(item => supportsBackendAnalysis(item.kind) && item.recordingIds?.length);
+    if (!recordedItems.length) {
+      alert('Record at least one assessment line first.');
+      return;
+    }
+
+    setBatchAnalysisStatus('running');
+    setBatchAnalysisMessage(`Analyzing ${recordedItems.length} recorded line${recordedItems.length === 1 ? '' : 's'}...`);
+
+    try {
+      const recordings: Array<{ itemId: string; audio: Blob; filename: string }> = [];
+
+      for (const item of recordedItems) {
+        const recordingId = item.recordingIds?.at(-1);
+        if (!recordingId) continue;
+        const storedRecording = await db.recordings.get(recordingId);
+        if (!storedRecording?.audio) continue;
+        const recording = storedRecording.isEncrypted
+          ? masterKey
+            ? await decryptRecording(storedRecording, masterKey)
+            : null
+          : storedRecording;
+
+        if (!recording?.audio) {
+          throw new Error('Unlock local security before batch-analyzing encrypted recordings.');
+        }
+
+        recordings.push({
+          itemId: item.id,
+          audio: recording.audio,
+          filename: `${item.id}.webm`
+        });
+        setAnalysisStatusByItem(prev => ({ ...prev, [item.id]: 'running' }));
+        await updateItem(item.id, {
+          advancedAnalysis: {
+            status: 'running',
+            apiUrl: analysisApiUrl.trim()
+          }
+        });
+      }
+
+      const result = await submitAssessmentSessionAnalysis({
+        apiUrl: analysisApiUrl.trim(),
+        apiKey: getAnalysisApiKey(),
+        assessment: {
+          assessment_id: activeAssessment.id,
+          client_label: selectedClient?.displayName,
+          items: activeItems.map(item => ({
+            id: item.id,
+            prompt: item.scriptText || item.prompt,
+            section_title: item.sectionTitle,
+            kind: item.kind,
+            result: item.result,
+            notes: item.notes,
+            cue_level: item.cueLevel,
+            recording_filename: item.recordingIds?.length ? `${item.id}.webm` : undefined
+          }))
+        },
+        recordings
+      });
+
+      for (const itemResult of result.item_results) {
+        const item = activeItems.find(activeItem => activeItem.id === itemResult.item_id);
+        if (!item) continue;
+        if (itemResult.status === 'complete' && itemResult.analysis) {
+          setAnalysisResultsByItem(prev => ({ ...prev, [item.id]: itemResult.analysis as AdvancedAnalysisResult }));
+          setAnalysisStatusByItem(prev => ({ ...prev, [item.id]: 'complete' }));
+          await updateItem(item.id, {
+            advancedAnalysis: toAdvancedAnalysisSnapshot(itemResult.analysis, analysisApiUrl.trim())
+          });
+        } else if (item.recordingIds?.length) {
+          const message = itemResult.warnings[0] || 'Batch analysis did not return metrics for this line.';
+          setAnalysisErrorsByItem(prev => ({ ...prev, [item.id]: message }));
+          setAnalysisStatusByItem(prev => ({ ...prev, [item.id]: 'error' }));
+          await updateItem(item.id, {
+            advancedAnalysis: toAdvancedAnalysisErrorSnapshot(message, analysisApiUrl.trim())
+          });
+        }
+      }
+
+      setBatchAnalysisStatus('complete');
+      setBatchAnalysisMessage(`Analysis ready for ${result.analyzed_items} recorded line${result.analyzed_items === 1 ? '' : 's'}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Batch assessment analysis failed.';
+      setBatchAnalysisStatus('error');
+      setBatchAnalysisMessage(message);
+    }
+  };
+
   const insertAdvancedAnalysisIntoNotes = async (item: AssessmentItem) => {
     const result = analysisResultsByItem[item.id] || item.advancedAnalysis?.result;
     if (!result) return;
@@ -1688,6 +1986,8 @@ export function AssessmentTab() {
     }, selectedClient, activeItems);
     setSummaryDraft(draft.summary);
     setRecommendationsDraft(draft.recommendations);
+    setSchoolNoteDraft(buildSchoolAssessmentNote(activeAssessment, selectedClient, activeItems, draft.summary, draft.recommendations));
+    setSoapNoteDraft(buildSoapAssessmentNote(activeAssessment, selectedClient, activeItems, draft.recommendations));
     setSupportPlanDraft(draft.supportPlan);
   };
 
@@ -1697,6 +1997,8 @@ export function AssessmentTab() {
     const patch: Partial<Assessment> = {
       summary: summaryDraft,
       recommendations: recommendationsDraft,
+      schoolNote: schoolNoteDraft,
+      soapNote: soapNoteDraft,
       clinicianNotes: clinicianNotes.trim() || undefined,
       therapyIdeas: supportPlanDraft,
       homePractice: supportPlanDraft,
@@ -1717,7 +2019,7 @@ export function AssessmentTab() {
   };
 
   const copySummary = async () => {
-    await navigator.clipboard.writeText(`${summaryDraft}\n\nRecommendations / follow-up considerations:\n${recommendationsDraft}\n\nTherapy / practice starter:\n${supportPlanDraft}`);
+    await navigator.clipboard.writeText(`${summaryDraft}\n\nSchool note:\n${schoolNoteDraft}\n\nSOAP note:\n${soapNoteDraft}\n\nRecommendations / follow-up considerations:\n${recommendationsDraft}\n\nHome practice:\n${supportPlanDraft}`);
     setSaveStatus('Assessment summary copied.');
     setTimeout(() => setSaveStatus(''), 1800);
   };
@@ -1901,11 +2203,11 @@ export function AssessmentTab() {
                   alert('Add a patient name first.');
                   return;
                 }
-                setLaunchPhase('diagnostic');
+                setLaunchPhase(selectedPreset ? 'ready' : 'diagnostic');
               }}
               className={`${BUTTON_CLASS} w-full bg-sky-600 text-white text-base shadow-lg shadow-sky-200`}
             >
-              Choose Diagnostic
+              {selectedPreset ? 'Continue to Consent' : 'Choose Diagnostic'}
             </button>
           </section>
         )}
@@ -2238,7 +2540,28 @@ export function AssessmentTab() {
                 className="h-5 w-5 accent-emerald-500"
               />
             </label>
+            <button
+              type="button"
+              onClick={runBatchAnalysisForAssessment}
+              disabled={!isAnalysisReady || batchAnalysisStatus === 'running' || analyzableItems.length === 0}
+              className={`${BUTTON_CLASS} px-3 text-xs ${
+                isAnalysisReady && batchAnalysisStatus !== 'running' && analyzableItems.length > 0
+                  ? 'bg-cyan-500 text-slate-950'
+                  : 'bg-slate-900 border border-slate-700 text-slate-500 cursor-not-allowed'
+              }`}
+            >
+              {batchAnalysisStatus === 'running' ? 'Analyzing all...' : 'Analyze all recordings'}
+            </button>
           </div>
+          {batchAnalysisMessage && (
+            <p className={`rounded-2xl border p-3 text-[11px] font-bold ${
+              batchAnalysisStatus === 'error'
+                ? 'bg-rose-500/10 border-rose-500/25 text-rose-100'
+                : 'bg-slate-950/60 border-slate-800 text-slate-300'
+            }`}>
+              {batchAnalysisMessage}
+            </p>
+          )}
           <details className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
             <summary className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-slate-400">
               Backend settings
@@ -2257,6 +2580,27 @@ export function AssessmentTab() {
               Production defaults to api.hearforspeech.com. Self-hosted clinics can override this URL intentionally.
             </p>
           </details>
+          {analysisQueueRows.length > 0 && (
+            <div className="grid gap-2">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Recording analysis queue</p>
+              {analysisQueueRows.slice(0, 5).map(row => (
+                <div key={row.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-950/60 border border-slate-800 px-3 py-2">
+                  <span className="min-w-0 truncate text-xs font-bold text-slate-200">{row.title}</span>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${
+                    row.label === 'Ready'
+                      ? 'bg-emerald-500/15 text-emerald-200'
+                      : row.label === 'Analyzing'
+                        ? 'bg-cyan-500/15 text-cyan-200'
+                        : row.label === 'Needs review'
+                          ? 'bg-rose-500/15 text-rose-200'
+                          : 'bg-amber-500/15 text-amber-200'
+                  }`}>
+                    {row.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-[0.9fr_1.1fr] gap-3">
@@ -2333,21 +2677,42 @@ export function AssessmentTab() {
             </div>
             <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3">
               <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">3. Capture</span>
-              <p className="text-xs text-slate-300 leading-relaxed mt-1">Record if useful, tap the closest result, add one quick note, then move on.</p>
+              <p className="text-xs text-slate-300 leading-relaxed mt-1">Use the big bar: record, re-record if needed, or skip and keep moving.</p>
               {isSpeechRecordable(currentCoachItem.kind) && (
-                <button
-                  type="button"
-                  onClick={recordingItemId === currentCoachItem.id ? stopRecording : () => startRecording(currentCoachItem)}
-                  disabled={!!recordingItemId && recordingItemId !== currentCoachItem.id}
-                  className={`${BUTTON_CLASS} mt-3 w-full text-xs flex items-center justify-center gap-2 ${
-                    recordingItemId === currentCoachItem.id
-                      ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                      : 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 disabled:opacity-50'
-                  }`}
-                >
-                  {recordingItemId === currentCoachItem.id ? <Square size={16} /> : <Mic size={16} />}
-                  {recordingItemId === currentCoachItem.id ? `Stop ${formatTime(recordingSeconds)}` : 'Record current line'}
-                </button>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={recordingItemId === currentCoachItem.id ? stopRecording : () => startRecording(currentCoachItem)}
+                    disabled={!!recordingItemId && recordingItemId !== currentCoachItem.id}
+                    className={`${BUTTON_CLASS} col-span-2 text-sm flex items-center justify-center gap-2 ${
+                      recordingItemId === currentCoachItem.id
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                        : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 disabled:opacity-50'
+                    }`}
+                  >
+                    {recordingItemId === currentCoachItem.id ? <Square size={18} /> : <Mic size={18} />}
+                    {recordingItemId === currentCoachItem.id ? `Stop Recording ${formatTime(recordingSeconds)}` : 'Record'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startRecording(currentCoachItem)}
+                    disabled={!!recordingItemId || !(currentCoachItem.recordingIds?.length)}
+                    className={`${BUTTON_CLASS} bg-slate-900 border border-slate-700 text-slate-300 text-xs disabled:opacity-40`}
+                  >
+                    Re-record
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateItem(currentCoachItem.id, {
+                      result: currentCoachItem.result || 'Skipped / not needed today',
+                      status: 'complete'
+                    })}
+                    disabled={!!recordingItemId}
+                    className={`${BUTTON_CLASS} bg-slate-900 border border-slate-700 text-slate-300 text-xs disabled:opacity-40`}
+                  >
+                    Skip
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -2366,7 +2731,7 @@ export function AssessmentTab() {
             className={`${BUTTON_CLASS} w-full bg-slate-900 border border-slate-700 text-slate-200 flex items-center justify-center gap-2`}
           >
             <Sparkles size={16} />
-            Generate Editable Assessment Draft
+            Generate Editable End-Screen Drafts
           </button>
           <label className="block text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="assessment-summary">
             Diagnostic summary draft
@@ -2377,6 +2742,28 @@ export function AssessmentTab() {
             onChange={event => setSummaryDraft(event.target.value)}
             rows={11}
             className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 leading-relaxed select-text ${FOCUS_CLASS}`}
+          />
+          <label className="block text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="assessment-school-note">
+            School / IEP-style note
+          </label>
+          <textarea
+            id="assessment-school-note"
+            value={schoolNoteDraft}
+            onChange={event => setSchoolNoteDraft(event.target.value)}
+            rows={8}
+            placeholder="Generate a draft, then edit for your documentation system."
+            className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 leading-relaxed placeholder-slate-600 select-text ${FOCUS_CLASS}`}
+          />
+          <label className="block text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="assessment-soap-note">
+            SOAP note
+          </label>
+          <textarea
+            id="assessment-soap-note"
+            value={soapNoteDraft}
+            onChange={event => setSoapNoteDraft(event.target.value)}
+            rows={7}
+            placeholder="Generate a draft, then edit S/O/A/P."
+            className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 leading-relaxed placeholder-slate-600 select-text ${FOCUS_CLASS}`}
           />
           <label className="block text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="assessment-recommendations">
             Recommendations / follow-up considerations
@@ -2389,7 +2776,7 @@ export function AssessmentTab() {
             className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 leading-relaxed select-text ${FOCUS_CLASS}`}
           />
           <label className="block text-left text-[10px] font-extrabold uppercase tracking-wider text-slate-500" htmlFor="assessment-support-plan">
-            Therapy / home-practice starter
+            Home practice / therapy starter
           </label>
           <textarea
             id="assessment-support-plan"

@@ -14,6 +14,15 @@ Hear for Speech supports SLP judgment. It does not diagnose, prescribe treatment
 
 ## Guided SLP Workflow
 
+The app opens to a no-doc **Home** screen:
+
+1. Tap **New Patient** or **Load Patient**.
+2. Choose **Start Assessment**, **Start Therapy Session**, or **Review Results**.
+3. Pick an assessment pack such as **10-min screen**, **Full articulation / intelligibility**, **/r/ deep dive**, **Voice / resonance**, **Connected speech**, **School participation**, or **Listener Check**.
+4. Follow the line-by-line prompts with the large record bar.
+5. Let the analysis queue move recordings from **Queued** to **Analyzing** to **Ready**.
+6. Finish with editable diagnostic summary, school note, SOAP note, home practice, and printable PDF.
+
 ### Start Session
 1. Open the app to the **Session** tab.
 2. Choose **New Patient** or **Load Patient**.
@@ -160,7 +169,7 @@ VITE_HFS_ANALYSIS_API_URL=https://api.hearforspeech.com
 VITE_HFS_ANALYSIS_API_KEY=
 ```
 
-When an assessment has recording consent confirmed and **Auto analyze recordings** is on, newly recorded assessment lines upload in the background for temporary processing. The line card changes to **Analysis ready** when metrics return, and the SLP can choose whether to insert those metrics into editable notes.
+When an assessment has recording consent confirmed and **Auto analyze recordings** is on, newly recorded assessment lines upload in the background for temporary processing. The line card changes to **Analysis ready** when metrics return, and the SLP can choose whether to insert those metrics into editable notes. The assessment header also includes **Analyze all recordings**, which uses the batch assessment endpoint when the backend has been deployed with `POST /v1/analysis/assessment-session`.
 
 The backend uses temporary processing and returns supporting acoustic descriptors. It does not diagnose, determine eligibility, or replace SLP interpretation. If the backend is offline, the guided assessment, recordings, checklist scoring, drafts, printing, and exports still work from local browser storage.
 

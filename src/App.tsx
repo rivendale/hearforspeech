@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Activity, Cpu, X, Sparkles, Mic, BarChart3, ClipboardList, Download, Brain } from 'lucide-react';
+import { Shield, Activity, Cpu, X, Sparkles, BarChart3, ClipboardList, Download, Brain, Home } from 'lucide-react';
 import { useStore } from './store/useStore';
+import type { AppTab } from './store/useStore';
 import { db, type BackupPayload, type SessionLog } from './db/database';
 import { 
   hashPIN, 
@@ -13,6 +14,7 @@ import {
 } from './utils/crypto';
 import { decompressData } from './utils/compression';
 import { ClinicalAICopilot } from './components/ClinicalAICopilot';
+import { HomeTab } from './tabs/HomeTab';
 import { SessionTab } from './tabs/SessionTab';
 import { AssessmentTab } from './tabs/AssessmentTab';
 import { VisualizerTab } from './tabs/VisualizerTab';
@@ -62,7 +64,7 @@ function WorkflowGuide({
   onJump
 }: {
   activeTab: string;
-  onJump: (tab: 'session' | 'assessment') => void;
+  onJump: (tab: AppTab) => void;
 }) {
   const isAssessment = activeTab === 'assessment';
 
@@ -775,6 +777,7 @@ export default function App() {
         {activeTab === 'assessment' && (
           <WorkflowGuide activeTab={activeTab} onJump={setActiveTab} />
         )}
+        {activeTab === 'home' && <HomeTab />}
         {activeTab === 'session' && <SessionTab />}
         {activeTab === 'assessment' && <AssessmentTab />}
         {activeTab === 'visualizer' && <VisualizerTab />}
@@ -790,6 +793,17 @@ export default function App() {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-slate-950/95 backdrop-blur-lg border-t border-slate-900 flex justify-around p-2.5 z-50 rounded-t-2xl shadow-2xl">
+        <button
+          onClick={() => setActiveTab('home')}
+          className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
+            activeTab === 'home' ? 'text-sky-400 font-semibold' : 'text-slate-550 hover:text-slate-350'
+          }`}
+        >
+          {activeTab === 'home' && <span className="absolute inset-x-4 top-0 h-0.5 bg-gradient-to-r from-sky-400 to-amber-400 rounded-full" />}
+          <Home size={20} className={`transition-transform duration-300 ${activeTab === 'home' ? 'scale-110' : 'scale-100'}`} />
+          <span className="text-[10px] mt-1 tracking-wider uppercase">Home</span>
+        </button>
+
         <button 
           onClick={() => setActiveTab('session')} 
           className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
@@ -813,17 +827,6 @@ export default function App() {
         </button>
 
         <button 
-          onClick={() => setActiveTab('visualizer')} 
-          className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
-            activeTab === 'visualizer' ? 'text-indigo-400 font-semibold' : 'text-slate-550 hover:text-slate-350'
-          }`}
-        >
-          {activeTab === 'visualizer' && <span className="absolute inset-x-4 top-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" />}
-          <Mic size={20} className={`transition-transform duration-300 ${activeTab === 'visualizer' ? 'scale-110' : 'scale-100'}`} />
-          <span className="text-[10px] mt-1 tracking-wider uppercase">Biofeedback</span>
-        </button>
-
-        <button 
           onClick={() => setActiveTab('tracker')} 
           className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
             activeTab === 'tracker' ? 'text-indigo-400 font-semibold' : 'text-slate-555 hover:text-slate-350'
@@ -832,17 +835,6 @@ export default function App() {
           {activeTab === 'tracker' && <span className="absolute inset-x-4 top-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" />}
           <BarChart3 size={20} className={`transition-transform duration-300 ${activeTab === 'tracker' ? 'scale-110' : 'scale-100'}`} />
           <span className="text-[10px] mt-1 tracking-wider uppercase">Data</span>
-        </button>
-
-        <button 
-          onClick={() => setActiveTab('protocol')} 
-          className={`relative flex-1 py-2.5 flex flex-col items-center justify-center rounded-xl transition-all duration-300 min-h-[48px] ${
-            activeTab === 'protocol' ? 'text-indigo-400 font-semibold' : 'text-slate-555 hover:text-slate-350'
-          }`}
-        >
-          {activeTab === 'protocol' && <span className="absolute inset-x-4 top-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" />}
-          <ClipboardList size={20} className={`transition-transform duration-300 ${activeTab === 'protocol' ? 'scale-110' : 'scale-100'}`} />
-          <span className="text-[10px] mt-1 tracking-wider uppercase">Protocol</span>
         </button>
 
         <button 
