@@ -677,7 +677,8 @@ export default function App() {
   };
 
   const parselmouthEngine = analysisCapabilities?.engines.find(engine => engine.name === 'parselmouth');
-  const isAnalysisApiReady = Boolean(analysisCapabilities && parselmouthEngine?.available);
+  const speechSoundEngine = analysisCapabilities?.engines.find(engine => engine.name === 'speech-sound-patterns');
+  const isAnalysisApiReady = Boolean(analysisCapabilities && (parselmouthEngine?.available || speechSoundEngine?.available));
   const analysisBadgeLabel = isAnalysisApiReady ? 'Analysis Ready' : analysisApiChecking ? 'Checking API' : 'Guided Tools';
 
   if (isLocked) {
@@ -980,6 +981,14 @@ export default function App() {
                   : 'Parselmouth metrics are unavailable; the app will keep recording/checklist data local.'
                 }
               />
+              <CalibrationItem
+                label="Speech-Sound Patterns"
+                status={Boolean(speechSoundEngine?.available)}
+                desc={speechSoundEngine?.available
+                  ? 'Record → Stop → Analyze can return possible speech-sound error candidates for SLP review.'
+                  : 'Speech-sound pattern candidates are unavailable; use manual SLP scoring and guided inventory prompts.'
+                }
+              />
               <CalibrationItem label="Browser Engine Check" status={getPlatformInfo().isChromium} desc={getPlatformInfo().isChromium ? "Chromium-based browser detected." : "Non-Chromium browser detected; guided workflows still work."} />
               <CalibrationItem label="Built-in AI API Status" status={hasLocalAI} desc={aiCapability?.message || "Optional browser built-in AI detection is separate from the HearForSpeech API."} />
             </div>
@@ -987,10 +996,10 @@ export default function App() {
             <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl text-[11px] text-emerald-50 space-y-2 leading-relaxed font-normal text-left">
               <span className="font-bold block uppercase tracking-wider">Automatic assessment analysis</span>
               <p>
-                The guided assessment can send newly recorded assessment lines to <span className="font-mono text-[10px]">{analysisApiUrl}</span> in the background when recording consent is confirmed and auto-analysis is enabled.
+                Home can send the latest recording to <span className="font-mono text-[10px]">{analysisApiUrl}</span> for possible speech-sound pattern review. The guided assessment can also send newly recorded lines in the background when recording consent is confirmed and auto-analysis is enabled.
               </p>
               <p className="text-emerald-100/80">
-                Results are objective acoustic descriptors for clinician review. They do not diagnose, determine eligibility, or replace SLP judgment.
+                Results are acoustic descriptors and candidate error patterns for clinician review. They do not diagnose, determine eligibility, or replace SLP judgment.
               </p>
             </div>
 

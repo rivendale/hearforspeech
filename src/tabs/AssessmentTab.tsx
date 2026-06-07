@@ -68,6 +68,7 @@ type QuickStartPreset = {
   template: Assessment['template'];
   concern: string;
   minutes: number;
+  defaultAge?: number;
   focusTargets: string[];
   setting: string;
   diagnosticFlags?: string[];
@@ -139,6 +140,7 @@ const toAdvancedAnalysisErrorSnapshot = (
 });
 
 const FOCUS_OPTIONS: FocusOption[] = [
+  { id: 'sound_inventory', label: 'Full inventory', helper: 'all consonants, vowels, clusters, word positions' },
   { id: 'articulation', label: 'Artic sounds', helper: 'word positions, substitutions, distortions' },
   { id: 'rhotic_r', label: '/r/ deep dive', helper: 'prevocalic, vocalic, blends, sentences' },
   { id: 'intelligibility', label: 'Intelligibility', helper: 'how clear speech is to listeners' },
@@ -167,12 +169,26 @@ const QUESTIONNAIRE_OPTIONS: DiagnosticFlagOption[] = [
 
 const TEMPLATE_FOCUS: Record<Assessment['template'], string[]> = {
   adolescent_speech_intelligibility: ['articulation', 'intelligibility', 'connected_speech', 'stimulability', 'listener_check', 'practice_plan'],
+  teen_speech_sound_inventory: ['sound_inventory', 'articulation', 'intelligibility', 'connected_speech', 'stimulability', 'practice_plan'],
   rhotic_r_diagnostic: ['rhotic_r', 'articulation', 'stimulability', 'listener_check', 'practice_plan'],
   connected_speech_participation: ['intelligibility', 'connected_speech', 'school_participation', 'listener_check', 'practice_plan'],
   school_participation_interview: ['school_participation', 'connected_speech', 'caregiver_teacher', 'practice_plan']
 };
 
 const QUICK_START_PRESETS: QuickStartPreset[] = [
+  {
+    id: 'teen_sound_inventory',
+    title: 'Full sound inventory',
+    subtitle: 'The SLP-friendly 14-year-old inventory: read, record, score sounds by position, clusters, vowels, and connected speech.',
+    template: 'teen_speech_sound_inventory',
+    concern: 'Full adolescent speech sound inventory across consonants, vowels, clusters, multisyllabic words, reading, and connected speech.',
+    minutes: 45,
+    defaultAge: 14,
+    focusTargets: ['sound_inventory', 'articulation', 'intelligibility', 'connected_speech', 'stimulability', 'practice_plan'],
+    setting: 'Full speech sound inventory',
+    diagnosticFlags: ['bilingual_dialect', 'hearing_access'],
+    questionnaires: ['student_impact']
+  },
   {
     id: 'phone_triage',
     title: 'I have 10 minutes',
@@ -454,6 +470,177 @@ const BROAD_SCREEN_ITEMS: TemplateItem[] = [
   }
 ];
 
+const SOUND_INVENTORY_ITEMS: TemplateItem[] = [
+  {
+    sectionKey: 'consent',
+    sectionTitle: 'Start Sound Inventory',
+    prompt: 'Confirm consent, patient name, age, language/dialect background, hearing/listening access, and today’s speech concern.',
+    helperText: 'Keep setup short. The goal is to move quickly into read/record/listen, while documenting context that affects interpretation.',
+    scriptText: 'We are going to record a speech sound inventory. You will read words, sentences, and a short passage. This helps me hear which sounds are clear and which need support.',
+    kind: 'checklist',
+    analysisTags: ['consent', 'context'],
+    sortOrder: 10
+  },
+  {
+    sectionKey: 'connected_sample',
+    sectionTitle: 'Connected Speech Warm-Up',
+    prompt: 'Record natural speech: “Tell me about something you are into lately — a game, sport, show, music, class, or app.”',
+    helperText: 'Start with natural speech before single-word probing. Listen for intelligibility, rate, volume, prosody, self-monitoring, and repair.',
+    scriptText: 'Tell me about something you are into lately — a game, sport, show, music, class, app, or anything you like.',
+    kind: 'speech_sample',
+    analysisTags: ['connected speech', 'intelligibility', 'self-monitoring'],
+    functionalContext: 'conversation',
+    sortOrder: 20
+  },
+  {
+    sectionKey: 'consonants_initial',
+    sectionTitle: 'Initial Consonants',
+    prompt: 'Initial consonants: pie, boy, tie, day, key, go, me, no, fan, van, thin, this, sun, zoo, shoe, hat, chair, jump, light, red, we, yes.',
+    helperText: 'Score each sound as clear, distorted, substituted, omitted, or not probed. Consider dialect/language difference before marking an error.',
+    scriptText: 'Say these words after me: pie, boy, tie, day, key, go, me, no, fan, van, thin, this, sun, zoo, shoe, hat, chair, jump, light, red, we, yes.',
+    listenFor: ['Initial consonant inventory', 'Substitution, omission, distortion, or inconsistency', 'Residual /r/, /s,z/, /th/, /sh,ch,j/ concerns'],
+    kind: 'sound_probe',
+    soundTargets: ['/p b t d k g/', '/m n/', '/f v θ ð s z ʃ h/', '/tʃ dʒ/', '/l r/', '/w j/'],
+    wordPositions: ['initial'],
+    analysisTags: ['consonant inventory', 'initial position'],
+    sortOrder: 30
+  },
+  {
+    sectionKey: 'consonants_medial',
+    sectionTitle: 'Medial Consonants',
+    prompt: 'Medial consonants: apple, rabbit, butter, ladder, soccer, tiger, hammer, pony, singing, dolphin, seven, birthday, mother, pencil, busy, fishing, measure, teacher, magic, yellow, carrot, away, canyon.',
+    helperText: 'Medial words help reveal sequencing, coarticulation, and longer-word breakdown.',
+    scriptText: 'Say these words after me: apple, rabbit, butter, ladder, soccer, tiger, hammer, pony, singing, dolphin, seven, birthday, mother, pencil, busy, fishing, measure, teacher, magic, yellow, carrot, away, canyon.',
+    listenFor: ['Medial consonant clarity', 'Sequencing difficulty', 'Sound distortion in longer words'],
+    kind: 'sound_probe',
+    soundTargets: ['/p b t d k g/', '/m n ŋ/', '/f v θ ð s z ʃ ʒ/', '/tʃ dʒ/', '/l r/', '/w j/'],
+    wordPositions: ['medial'],
+    analysisTags: ['consonant inventory', 'medial position'],
+    sortOrder: 40
+  },
+  {
+    sectionKey: 'consonants_final',
+    sectionTitle: 'Final Consonants',
+    prompt: 'Final consonants: cup, tub, cat, bed, book, dog, home, moon, ring, leaf, five, teeth, bathe, bus, buzz, fish, garage, watch, bridge, ball, car.',
+    helperText: 'Listen for final consonant deletion, voicing contrasts, /r/ vocalization/distortion, and final cluster effects.',
+    scriptText: 'Say these words after me: cup, tub, cat, bed, book, dog, home, moon, ring, leaf, five, teeth, bathe, bus, buzz, fish, garage, watch, bridge, ball, car.',
+    listenFor: ['Final consonant inventory', 'Final consonant deletion', 'Voicing contrasts', 'Final /r/ and /l/ clarity'],
+    kind: 'sound_probe',
+    soundTargets: ['/p b t d k g/', '/m n ŋ/', '/f v θ ð s z ʃ ʒ/', '/tʃ dʒ/', '/l r/'],
+    wordPositions: ['final'],
+    analysisTags: ['consonant inventory', 'final position'],
+    sortOrder: 50
+  },
+  {
+    sectionKey: 'vowels',
+    sectionTitle: 'Vowels & Diphthongs',
+    prompt: 'Vowels and diphthongs: beet, bit, bait, bet, bat, hot, caught, boat, book, boot, cup, sofa, bite, cow, boy, day, go.',
+    helperText: 'For adolescents, note vowel clarity, dialect/accent context, and whether vowels affect intelligibility.',
+    scriptText: 'Say these words after me: beet, bit, bait, bet, bat, hot, caught, boat, book, boot, cup, sofa, bite, cow, boy, day, go.',
+    listenFor: ['Vowel clarity', 'Dialect/accent context', 'Diphthongs', 'Whether vowel differences affect intelligibility'],
+    kind: 'sound_probe',
+    soundTargets: ['/i ɪ eɪ ɛ æ ɑ ɔ oʊ ʊ u ʌ ə/', '/aɪ aʊ ɔɪ/'],
+    wordPositions: ['vowels'],
+    analysisTags: ['vowel inventory', 'diphthongs'],
+    sortOrder: 60
+  },
+  {
+    sectionKey: 'clusters',
+    sectionTitle: 'Initial Clusters',
+    prompt: 'Initial clusters: spoon, star, skate, smile, snake, swim, slide, prize, break, tree, drive, crown, green, frog, play, blue, clean, glue, fly, sleep, queen, twelve, dwell.',
+    helperText: 'Listen for cluster reduction, substitutions, distortions, sequencing, and whether slowed rate helps.',
+    scriptText: 'Say these cluster words slowly: spoon, star, skate, smile, snake, swim, slide, prize, break, tree, drive, crown, green, frog, play, blue, clean, glue, fly, sleep, queen, twelve, dwell.',
+    listenFor: ['Cluster reduction', '/s/ clusters', '/r/ blends', '/l/ blends', '/w/ blends', 'Sequencing'],
+    kind: 'sound_probe',
+    soundTargets: ['/s/ clusters', '/r/ blends', '/l/ blends', '/w/ blends'],
+    wordPositions: ['initial clusters'],
+    analysisTags: ['cluster inventory', 'initial clusters'],
+    sortOrder: 70
+  },
+  {
+    sectionKey: 'clusters',
+    sectionTitle: 'Final Clusters & Endings',
+    prompt: 'Final clusters and endings: best, hand, milk, left, jump, asked, desks, texts, lamps, cats, dogs, wished, played, wanted.',
+    helperText: 'Include morphological endings because adolescent speech clarity often breaks down in fast connected speech.',
+    scriptText: 'Say these final cluster and ending words: best, hand, milk, left, jump, asked, desks, texts, lamps, cats, dogs, wished, played, wanted.',
+    listenFor: ['Two-element final clusters', 'Three-element final clusters', 'Morphological endings', 'Final sound deletion or reduction'],
+    kind: 'sound_probe',
+    soundTargets: ['final clusters', 'morphological endings'],
+    wordPositions: ['final clusters'],
+    analysisTags: ['cluster inventory', 'morphological endings'],
+    sortOrder: 80
+  },
+  {
+    sectionKey: 'syllable_shapes',
+    sectionTitle: 'Syllable Shapes & Long Words',
+    prompt: 'Syllable shapes and long words: me, up, cat, puppy, stop, fast, plant, street, computer, cafeteria, responsibility, university, electricity, conversation, organization.',
+    helperText: 'Listen for syllable deletion, stress errors, sequencing, and reduced clarity in academic/multisyllabic words.',
+    scriptText: 'Say these words after me: me, up, cat, puppy, stop, fast, plant, street, computer, cafeteria, responsibility, university, electricity, conversation, organization.',
+    listenFor: ['CV, VC, CVC, CVCV, CCVC, CVCC, CCVCC, CCCVC', 'Multisyllabic words', 'Stress and sequencing'],
+    kind: 'sound_probe',
+    soundTargets: ['syllable shapes', 'multisyllabic words'],
+    wordPositions: ['mixed'],
+    analysisTags: ['syllable shapes', 'multisyllabic words'],
+    sortOrder: 90
+  },
+  {
+    sectionKey: 'residual_targets',
+    sectionTitle: 'Residual Target Check',
+    prompt: 'Residual targets: red, rabbit, ring, car, star, bird, girl, teacher, mother, fear, fire, tired, world, sun, science, shoe, chair, jump, thin, this, three, street.',
+    helperText: 'For a 14-year-old, pay close attention to residual /r/, /s,z/, /sh,ch,j/, /th/, clusters, and multisyllabic sequencing.',
+    scriptText: 'Say these final check words: red, rabbit, ring, car, star, bird, girl, teacher, mother, fear, fire, tired, world, sun, science, shoe, chair, jump, thin, this, three, street.',
+    listenFor: ['/r/ distortion', 'Frontal or lateral /s,z,ʃ/', '/θ, ð/ substitutions', 'Cluster sequencing', 'Cue response'],
+    kind: 'sound_probe',
+    soundTargets: ['/r/', '/s z/', '/ʃ tʃ dʒ/', '/θ ð/', 'clusters'],
+    wordPositions: ['mixed', 'residual targets'],
+    analysisTags: ['residual speech sounds'],
+    sortOrder: 100
+  },
+  {
+    sectionKey: 'reading',
+    sectionTitle: 'Reading Sample',
+    prompt: 'Record reading passage: “The quiet library was full of students working on science projects. Jordan explained the results clearly, then answered questions from the group.”',
+    helperText: 'Use reading to compare word-level accuracy with sentence-level and connected-speech clarity.',
+    scriptText: 'Please read this aloud: The quiet library was full of students working on science projects. Jordan explained the results clearly, then answered questions from the group.',
+    listenFor: ['Reading intelligibility', 'Rate', 'Prosody', 'Carryover from word probes'],
+    kind: 'speech_sample',
+    analysisTags: ['reading sample', 'sentence-level clarity'],
+    functionalContext: 'reading',
+    sortOrder: 110
+  },
+  {
+    sectionKey: 'connected_sample',
+    sectionTitle: 'Explanation Sample',
+    prompt: 'Record explanation: “Explain how to play or do something you know well.”',
+    helperText: 'Compare spontaneous connected speech to the structured word inventory.',
+    scriptText: 'Explain how to play or do something you know well. Pretend I am brand new to it.',
+    listenFor: ['Connected speech intelligibility', 'Rate and volume', 'Breakdown in longer utterances', 'Self-correction'],
+    kind: 'speech_sample',
+    analysisTags: ['connected speech', 'expository sample'],
+    functionalContext: 'explanation',
+    sortOrder: 120
+  },
+  {
+    sectionKey: 'stimulability',
+    sectionTitle: 'Cueing / Stimulability',
+    prompt: 'Pick 2–3 unclear sounds and retry with model, slowed rate, visual/verbal cue, and self-monitoring.',
+    helperText: 'Record the least support that improves clarity. This helps plan therapy targets without over-interpreting the app.',
+    scriptText: 'Now I will pick a few sounds to try again. Copy my model, try it slowly, and tell me if it sounded clear.',
+    listenFor: ['Independent vs. cued productions', 'Least support needed', 'Best therapy starting point'],
+    kind: 'stimulability',
+    analysisTags: ['stimulability', 'cue response', 'therapy planning'],
+    sortOrder: 130
+  },
+  {
+    sectionKey: 'summary',
+    sectionTitle: 'Inventory Summary',
+    prompt: 'Generate and edit the full sound inventory summary.',
+    helperText: 'Summarize present sounds, absent/distorted sounds, error patterns, intelligibility, cueing response, and next steps. The SLP makes all clinical decisions.',
+    kind: 'summary',
+    sortOrder: 140
+  }
+];
+
 const R_DEEP_DIVE_ITEMS: TemplateItem[] = [
   ...BROAD_SCREEN_ITEMS.filter(item => ['consent', 'history', 'speech_sample'].includes(item.sectionKey)),
   {
@@ -599,6 +786,13 @@ const ASSESSMENT_TEMPLATES: TemplateDefinition[] = [
     subtitle: 'Broad articulation, intelligibility, cueing, listener, and participation walkthrough.',
     defaultConcern: 'Speech clarity is harder in class, conversation, or with unfamiliar listeners.',
     items: BROAD_SCREEN_ITEMS
+  },
+  {
+    id: 'teen_speech_sound_inventory',
+    title: '14-Year-Old Full Sound Inventory',
+    subtitle: 'Consonants by word position, vowels, clusters, syllable shapes, multisyllabic words, reading, and connected speech.',
+    defaultConcern: 'Full adolescent speech sound inventory across words, reading, and connected speech.',
+    items: SOUND_INVENTORY_ITEMS
   },
   {
     id: 'rhotic_r_diagnostic',
@@ -1703,6 +1897,9 @@ export function AssessmentTab() {
     setPrimaryConcern(preset.concern);
     setSetting(preset.setting);
     setTimeBudgetMinutes(preset.minutes);
+    if (preset.defaultAge && !studentAge.trim()) {
+      setStudentAge(preset.defaultAge.toString());
+    }
     setFocusTargets(preset.focusTargets);
     setDiagnosticFlags(preset.diagnosticFlags || []);
     setQuestionnaireFlags(preset.questionnaires || []);
@@ -1807,6 +2004,9 @@ export function AssessmentTab() {
           setPrimaryConcern(preset.concern);
           setSetting(preset.setting);
           setTimeBudgetMinutes(preset.minutes);
+          if (preset.defaultAge) {
+            setStudentAge(preset.defaultAge.toString());
+          }
           setFocusTargets(preset.focusTargets);
           setDiagnosticFlags(preset.diagnosticFlags || []);
           setQuestionnaireFlags(preset.questionnaires || []);

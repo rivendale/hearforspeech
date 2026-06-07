@@ -1,29 +1,28 @@
 ## Summary
 
-Simplifies the app’s front door around what the SLP actually asked for: pick a patient, record speech, mark what is heard, save/copy a quick note, and print a starter diagnostic when needed.
+Makes the app front door a simple **Record → Stop → Analyze** workflow and adds a full 14-year-old sound inventory path.
 
 ## What changed
 
-- Replaces the complex Home workflow with a large, phone-first **Pick patient → Record speech → Mark what you hear** flow.
-- Adds one-tap patient creation/selection directly on Home.
-- Adds a big Start/Stop recording control with the starter reading passage visible above it.
-- Adds SLP-controlled speech observation chips for common concerns such as distortions, omissions, reduced intelligibility, fast rate, low volume, and “better with model.”
-- Adds quick note copy/save actions as unscored local guided-session notes.
-- Adds a printable **14-year-old intelligibility starter** with a patient reading page and SLP listening checklist.
-- Keeps advanced therapy session, data/review, and diagnostic portal tools available behind “More tools if needed.”
-- Updates README to explain the simpler no-doc workflow first.
+- Updates Home to lead with **Record. Stop. Analyze.**
+- Adds a big Analyze button after recording.
+- Wires Analyze to `POST /v1/analysis/speech-sound-patterns`.
+- Shows possible speech-sound error candidates for SLP review, including possible distortion, omission, substitution, cluster reduction, and intelligibility/recording-quality flags.
+- Keeps SLP confirmation chips before documentation.
+- Adds a printable 14-year-old full sound inventory with consonants by word position, vowels, clusters, multisyllabic words, connected speech, checklist, and report starter.
+- Adds a guided full sound inventory assessment preset.
+- Updates frontend analysis types and README.
 
 ## Why this helps SLPs
 
-The first screen no longer asks the clinician to understand the whole app. It supports the real “I only have my phone and need to start now” use case: select patient, record, mark speech observations, and decide whether to continue with a diagnostic.
+The clinician no longer has to understand the whole app before using it. The main screen supports the desired flow: select patient, record, stop, analyze, review likely speech-sound patterns, confirm what was actually heard, and save/copy the note.
 
 ## Data/privacy notes
 
-- Recordings continue to save locally in the browser’s existing recording store.
-- If the app has a local master key, quick recordings use the existing local encryption helper.
-- The quick observation flow is SLP-confirmed and does not claim automatic diagnosis or eligibility decisions.
-- Quick checks do not create fake PCC/rating progress points.
-- Printed starter materials are generated locally and should be reviewed by the SLP before sharing.
+- Recordings still save locally unless the SLP taps Analyze.
+- Analyze sends the recording to the configured HearForSpeech API for temporary processing.
+- Candidate errors are SLP-review prompts, not diagnoses or eligibility decisions.
+- Quick checks save as unscored local guided-session notes.
 
 ## Testing performed
 
@@ -32,5 +31,6 @@ The first screen no longer asks the clinician to understand the whole app. It su
 
 ## Known limitations / follow-up ideas
 
-- Automatic speech-error detection remains a future backend-assisted feature and should stay clinician-reviewed.
-- The printable starter is intentionally lightweight; future packets can add age-specific articulation, intelligibility, voice/resonance, and connected-speech variants.
+- Accuracy improves most with scripted prompts and full sound inventory recordings.
+- Backend MFA timestamps and Allosaurus phone candidates depend on server-side model/dependency availability.
+- Future UI can add confirm/ignore buttons per candidate with replay timestamps.

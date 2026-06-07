@@ -39,7 +39,7 @@ export type CueLevel = 'independent' | 'minimal' | 'moderate' | 'maximal';
 export type GoalStatus = 'active' | 'paused' | 'met' | 'archived';
 export type ListenerConfidence = 'low' | 'medium' | 'high';
 export type AssessmentStatus = 'draft' | 'completed';
-export type AssessmentTemplate = 'adolescent_speech_intelligibility' | 'rhotic_r_diagnostic' | 'connected_speech_participation' | 'school_participation_interview';
+export type AssessmentTemplate = 'adolescent_speech_intelligibility' | 'teen_speech_sound_inventory' | 'rhotic_r_diagnostic' | 'connected_speech_participation' | 'school_participation_interview';
 export type AssessmentItemKind = 'checklist' | 'question' | 'student_rating' | 'caregiver_interview' | 'participation' | 'speech_sample' | 'sound_probe' | 'stimulability' | 'listener_check' | 'summary';
 export type AdvancedAnalysisStatus = 'not_requested' | 'running' | 'complete' | 'error';
 
