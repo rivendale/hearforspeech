@@ -1,6 +1,7 @@
-interface HandoutSection {
+export interface HandoutSection {
   title: string;
   body: string;
+  pageBreakBefore?: boolean;
 }
 
 interface PrintableHandoutProps {
@@ -15,6 +16,8 @@ const splitLines = (body: string) => body
   .split('\n')
   .map(line => line.trim())
   .filter(Boolean);
+
+const isChecklistLine = (line: string) => line.startsWith('□') || line.startsWith('[ ]');
 
 export function PrintableHandout({
   title,
@@ -42,10 +45,15 @@ export function PrintableHandout({
 
         <div className="hfs-print-sections">
           {sections.map(section => (
-            <section key={section.title}>
+            <section
+              key={section.title}
+              className={section.pageBreakBefore ? 'hfs-print-section-page-break' : undefined}
+            >
               <h2>{section.title}</h2>
               {splitLines(section.body).map(line => (
-                <p key={line}>{line}</p>
+                <p key={line} className={isChecklistLine(line) ? 'hfs-print-checkline' : undefined}>
+                  {line}
+                </p>
               ))}
             </section>
           ))}

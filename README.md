@@ -96,7 +96,7 @@ Use **Assess** when the SLP has only a phone/tablet and needs to start quickly:
    - **Connected speech**
    - **School participation**
    - **Listener Check**
-4. Review the **Patient read-ahead worksheet** and tap **Print / Save PDF Worksheet** if the student needs lines to read before recording.
+4. Review the **Patient read-ahead worksheet** and tap **Print Patient Read-Ahead PDF** if the student needs lines to read before recording.
 5. Confirm recording/assessment consent.
 6. Follow each line in the **Diagnostic Portal**: show **Patient Read** when the student needs a clean prompt screen, record when useful, then use the SLP scoring drawer.
 7. Use **Next Line** to jump to the next unfinished item, or add custom lines whenever the clinician hears something unexpected.
@@ -115,17 +115,22 @@ The new diagnostic launcher adds local-only checklist lenses inspired by common 
 
 These are prompts and documentation aids, not automated diagnoses. Open-source tools such as forced aligners, phoneme recognizers, or acoustic-analysis libraries may be useful future research paths, but many require native Python/server/WASM work and are not added to the browser app unless they can remain local-first, practical, and clinician-controlled.
 
-### Printable Student / Caregiver Handouts
+### Printable Diagnostic Packets
 
-Assessment setup includes a **Patient read-ahead worksheet** before recording starts. Session and assessment summaries also include a **Patient handout preview** and **Print / Save PDF** action:
+Assessment setup includes a **Patient read-ahead worksheet** before recording starts. The Diagnostic Portal summary also includes selectable printable packets:
 
-1. Before the diagnostic, review the read-ahead worksheet and tap **Print / Save PDF Worksheet** if the student needs printed lines.
+- **Full Packet**: read-ahead prompts, SLP worksheet, scoring checklist, and practice sheet.
+- **Patient Read-Ahead**: simple prompts the patient can read before or during recording.
+- **SLP Worksheet**: line-by-line scoring, cueing, recording, and notes worksheet.
+- **Home Practice**: caregiver/student-friendly practice page after the assessment.
+
+1. Before the diagnostic, review the read-ahead worksheet and tap **Print Patient Read-Ahead PDF** if the student needs printed lines.
 2. After the session or assessment, review and edit the generated home-practice or practice-starter text.
-3. Tap **Print / Save PDF**.
+3. Choose the packet type, then tap **Print Selected Packet**.
 4. On mobile, use the browser/device print sheet, then choose **Save as PDF** or print to a connected printer.
 5. Share only after the SLP confirms the target, cue, practice schedule, and caregiver wording.
 
-Printed handouts use plain language and are designed for one student/family. They do not include other client records.
+Printed packets are generated locally for one student/family. Patient-facing packets use plain language; SLP worksheets may include checklist and scoring terms. They do not include other client records.
 
 - **Teen Speech Clarity Screen** for a broad adolescent speech/intelligibility walkthrough
 - **/r/ Diagnostic Deep Dive** for prevocalic, vocalic, blend, sentence, and stimulability probes

@@ -39,7 +39,7 @@ import {
   type AdvancedAnalysisResult
 } from '../utils/advancedAnalysis';
 import { decryptRecording, encryptRecording } from '../utils/crypto';
-import { PrintableHandout } from '../components/PrintableHandout';
+import { PrintableHandout, type HandoutSection } from '../components/PrintableHandout';
 
 type TemplateItem = Omit<AssessmentItem, 'id' | 'assessmentId' | 'status' | 'createdAt' | 'updatedAt' | 'recordingIds'>;
 type TemplateDefinition = {
@@ -73,10 +73,39 @@ type QuickStartPreset = {
   diagnosticFlags?: string[];
   questionnaires?: string[];
 };
+type PrintPacketKind = 'full_packet' | 'read_ahead' | 'clinician_worksheet' | 'home_practice';
+type PrintablePacket = {
+  title: string;
+  subtitle: string;
+  sections: HandoutSection[];
+  footerNote: string;
+};
 
 const FOCUS_CLASS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300';
 const BUTTON_CLASS = `min-h-[48px] rounded-2xl font-extrabold transition active:scale-98 ${FOCUS_CLASS}`;
 const ASSESSMENT_INTENT_KEY = 'hfs_assessment_start_intent';
+const PRINT_PACKET_OPTIONS: { id: PrintPacketKind; label: string; helper: string }[] = [
+  {
+    id: 'full_packet',
+    label: 'Full Packet',
+    helper: 'Read-ahead, SLP worksheet, scoring checklist, and practice sheet.'
+  },
+  {
+    id: 'read_ahead',
+    label: 'Patient Read-Ahead',
+    helper: 'Simple prompts the patient can read before or during recording.'
+  },
+  {
+    id: 'clinician_worksheet',
+    label: 'SLP Worksheet',
+    helper: 'Line-by-line scoring, cueing, recording, and notes worksheet.'
+  },
+  {
+    id: 'home_practice',
+    label: 'Home Practice',
+    helper: 'Caregiver/student-friendly practice page after the assessment.'
+  }
+];
 
 const CUE_LEVELS: { value: CueLevel; label: string }[] = [
   { value: 'independent', label: 'Independent' },
@@ -955,6 +984,142 @@ const buildReadAheadWorksheetSections = ({
   ];
 };
 
+const buildClinicianWorksheetSections = (
+  assessment: Assessment,
+  items: AssessmentItem[],
+  client: ClientProfile | undefined,
+  summaryDraft: string,
+  recommendationsDraft: string
+): HandoutSection[] => {
+  const templateDefinition = getTemplateDefinition(assessment.template);
+  const recordingCount = items.reduce((count, item) => count + (item.recordingIds?.length || 0), 0);
+  const analyzedCount = items.filter(item => item.advancedAnalysis?.status === 'complete').length;
+  const completedCount = items.filter(item => item.status === 'complete').length;
+  const recordableItems = items.filter(item => isSpeechRecordable(item.kind));
+  const lineChecklist = items.map((item, index) => [
+    `□ ${index + 1}. ${item.sectionTitle}: ${item.prompt}`,
+    `Result: ${item.result || '________________'}    Cue: ${item.cueLevel || '________________'}    Recording: ${item.recordingIds?.length ? `${item.recordingIds.length} attached` : '□ record  □ skip'}`,
+    `Notes: ${item.notes || '____________________________________________________________'}`
+  ].join('\n')).join('\n');
+  const recordableChecklist = recordableItems.length
+    ? recordableItems.map((item, index) => `□ ${index + 1}. ${item.sectionTitle}: ${item.scriptText || item.prompt}`).join('\n')
+    : '□ Add at least one speech sample, sound probe, stimulability probe, or Listener Check line.';
+
+  return [
+    {
+      title: 'Assessment Snapshot',
+      body: [
+        `Patient: ${client?.displayName || 'Student'}`,
+        `Diagnostic: ${templateDefinition.title}`,
+        `Focus: ${assessment.primaryConcern || templateDefinition.defaultConcern}`,
+        `Progress: ${completedCount}/${items.length} line(s), ${recordingCount} recording(s), ${analyzedCount} analysis-ready item(s).`,
+        `SLP reminder: interpret recordings, checklist entries, and any formal measures together.`
+      ].join('\n')
+    },
+    {
+      title: 'Recording Plan',
+      body: recordableChecklist
+    },
+    {
+      title: 'Line-by-Line Scoring Worksheet',
+      body: lineChecklist || '□ No assessment lines loaded yet.',
+      pageBreakBefore: true
+    },
+    {
+      title: 'Quick Scoring Key',
+      body: [
+        'Result options: clear/correct, approximate or partly clear, unclear/not yet, not probed.',
+        'Cueing: independent, minimal, moderate, maximal. Mark the least support that helped.',
+        'Listener Check: record whether a listener heard the item as clear or unclear, plus confidence when available.',
+        'Analysis facts: acoustic metrics support review only; they do not diagnose or decide eligibility.'
+      ].join('\n')
+    },
+    {
+      title: 'Draft Notes to Review',
+      body: [
+        summaryDraft ? `Diagnostic summary draft:\n${summaryDraft}` : 'Diagnostic summary draft: ________________________________',
+        recommendationsDraft ? `Considerations:\n${recommendationsDraft}` : 'Considerations: __________________________________________'
+      ].join('\n')
+    }
+  ];
+};
+
+const buildPrintableAssessmentPacket = ({
+  kind,
+  assessment,
+  items,
+  client,
+  readAheadSections,
+  patientHandoutSections,
+  clinicianWorksheetSections
+}: {
+  kind: PrintPacketKind;
+  assessment: Assessment;
+  items: AssessmentItem[];
+  client: ClientProfile | undefined;
+  readAheadSections: HandoutSection[];
+  patientHandoutSections: HandoutSection[];
+  clinicianWorksheetSections: HandoutSection[];
+}): PrintablePacket => {
+  const templateDefinition = getTemplateDefinition(assessment.template);
+  const recordingCount = items.reduce((count, item) => count + (item.recordingIds?.length || 0), 0);
+  const packetIntro: HandoutSection = {
+    title: 'Packet Cover',
+    body: [
+      `Patient: ${client?.displayName || 'Student'}`,
+      `Diagnostic Portal: ${templateDefinition.title}`,
+      `Focus: ${assessment.primaryConcern || templateDefinition.defaultConcern}`,
+      `Recordings attached in app: ${recordingCount}`,
+      'Clinician reviews and edits all interpretation before sharing documentation.'
+    ].join('\n')
+  };
+
+  if (kind === 'read_ahead') {
+    return {
+      title: 'Patient Read-Ahead Packet',
+      subtitle: 'Simple prompts to read before or during the guided speech assessment.',
+      sections: readAheadSections,
+      footerNote: 'This packet supports a clinician-guided speech assessment. It is not a diagnosis or a substitute for SLP judgment.'
+    };
+  }
+
+  if (kind === 'clinician_worksheet') {
+    return {
+      title: 'SLP Assessment Worksheet',
+      subtitle: 'Line-by-line scoring, recording, cueing, and note-taking support.',
+      sections: clinicianWorksheetSections,
+      footerNote: 'Use this worksheet alongside clinical judgment, recordings, and any required formal measures.'
+    };
+  }
+
+  if (kind === 'home_practice') {
+    return {
+      title: 'Speech Practice Sheet',
+      subtitle: 'Plain-language practice after today’s speech assessment.',
+      sections: patientHandoutSections,
+      footerNote: 'This handout is clinician-reviewed practice guidance. It does not diagnose or replace the SLP’s clinical judgment.'
+    };
+  }
+
+  return {
+    title: 'Diagnostic Portal Packet',
+    subtitle: 'Read-ahead prompts, SLP worksheet, and take-home practice in one printable packet.',
+    sections: [
+      packetIntro,
+      ...readAheadSections,
+      ...clinicianWorksheetSections.map((section, index) => ({
+        ...section,
+        pageBreakBefore: index === 0 || section.pageBreakBefore
+      })),
+      ...patientHandoutSections.map((section, index) => ({
+        ...section,
+        pageBreakBefore: index === 0 || section.pageBreakBefore
+      }))
+    ],
+    footerNote: 'Packet generated locally from clinician-entered assessment data. The SLP remains responsible for clinical interpretation and final documentation.'
+  };
+};
+
 const createId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -1296,6 +1461,7 @@ export function AssessmentTab() {
   const [schoolNoteDraft, setSchoolNoteDraft] = useState('');
   const [soapNoteDraft, setSoapNoteDraft] = useState('');
   const [supportPlanDraft, setSupportPlanDraft] = useState('');
+  const [printPacketKind, setPrintPacketKind] = useState<PrintPacketKind>('full_packet');
   const [saveStatus, setSaveStatus] = useState('');
   const [recordingItemId, setRecordingItemId] = useState<string | null>(null);
   const [patientReadItemId, setPatientReadItemId] = useState<string | null>(null);
@@ -2224,6 +2390,47 @@ export function AssessmentTab() {
     selectedTemplate,
     timeBudgetMinutes
   ]);
+  const activePrintablePacket = useMemo(() => {
+    if (!activeAssessment) return null;
+    const templateDefinition = getTemplateDefinition(activeAssessment.template);
+    const activeReadAheadSections = buildReadAheadWorksheetSections({
+      diagnosticName: templateDefinition.title,
+      diagnosticSubtitle: templateDefinition.subtitle,
+      primaryConcern: activeAssessment.primaryConcern || primaryConcern,
+      timeBudgetMinutes: activeAssessment.timeBudgetMinutes || timeBudgetMinutes,
+      customTarget,
+      templateItems: activeItems
+    });
+    const patientHandoutSections = buildPatientHandoutSections(activeAssessment, activeItems, supportPlanDraft);
+    const clinicianWorksheetSections = buildClinicianWorksheetSections(
+      activeAssessment,
+      activeItems,
+      selectedClient,
+      summaryDraft,
+      recommendationsDraft
+    );
+
+    return buildPrintableAssessmentPacket({
+      kind: printPacketKind,
+      assessment: activeAssessment,
+      items: activeItems,
+      client: selectedClient,
+      readAheadSections: activeReadAheadSections,
+      patientHandoutSections,
+      clinicianWorksheetSections
+    });
+  }, [
+    activeAssessment,
+    activeItems,
+    customTarget,
+    primaryConcern,
+    printPacketKind,
+    recommendationsDraft,
+    selectedClient,
+    summaryDraft,
+    supportPlanDraft,
+    timeBudgetMinutes
+  ]);
 
   if (!activeAssessment) {
     return (
@@ -2467,7 +2674,7 @@ export function AssessmentTab() {
                 <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">Before recording</p>
                 <h4 className="text-lg font-black text-slate-950">Patient read-ahead worksheet</h4>
                 <p className="text-sm text-slate-700 leading-relaxed mt-1">
-                  Print or save a simple PDF so the patient can read target lines ahead of time, or use it on-screen during the diagnostic.
+                  Print or save a simple read-ahead PDF so the patient can see target lines before recording, or use it on-screen during the diagnostic.
                 </p>
               </div>
               <div className="grid gap-2">
@@ -2484,7 +2691,7 @@ export function AssessmentTab() {
                 className={`${BUTTON_CLASS} w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2`}
               >
                 <Printer size={16} />
-                Print / Save PDF Worksheet
+                Print Patient Read-Ahead PDF
               </button>
               <PrintableHandout
                 title="Speech Read-Ahead Worksheet"
@@ -3065,20 +3272,50 @@ export function AssessmentTab() {
             placeholder="Generate a draft, then edit into therapy ideas or caregiver-friendly practice."
             className={`w-full bg-slate-900 border border-slate-700 rounded-2xl p-3 text-sm text-slate-100 leading-relaxed placeholder-slate-600 select-text ${FOCUS_CLASS}`}
           />
-          <div className="bg-white border border-blue-100 rounded-3xl p-4 text-left shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Patient handout preview</p>
-            <h4 className="text-base font-black text-slate-950 mt-1">{selectedClient?.displayName || 'Student'} practice sheet</h4>
-            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-              This creates a plain-language sheet from the assessment. On phones or desktop, choose <strong>Print</strong>, then <strong>Save as PDF</strong> if available.
-            </p>
-            <div className="mt-3 grid gap-2">
-              {buildPatientHandoutSections(activeAssessment, activeItems, supportPlanDraft).slice(0, 3).map(section => (
-                <div key={section.title} className="rounded-2xl bg-blue-50 border border-blue-100 p-3">
-                  <p className="text-xs font-black text-slate-950">{section.title}</p>
-                  <p className="text-xs text-slate-700 mt-1 leading-relaxed whitespace-pre-wrap">{section.body}</p>
-                </div>
-              ))}
+          <div className="bg-white border border-blue-100 rounded-3xl p-4 text-left shadow-sm space-y-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Printable packets</p>
+              <h4 className="text-base font-black text-slate-950 mt-1">
+                {PRINT_PACKET_OPTIONS.find(option => option.id === printPacketKind)?.label || 'Assessment Packet'}
+              </h4>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                Pick what the SLP needs, then tap <strong>Print Selected Packet</strong>. On phones or desktop, choose <strong>Save as PDF</strong> if available.
+              </p>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {PRINT_PACKET_OPTIONS.map(option => {
+                const isSelected = printPacketKind === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setPrintPacketKind(option.id)}
+                    className={`${BUTTON_CLASS} min-h-[76px] text-left px-3 border ${
+                      isSelected
+                        ? 'bg-blue-600 border-blue-700 text-white shadow-lg shadow-blue-100'
+                        : 'bg-blue-50 border-blue-100 text-slate-900'
+                    }`}
+                  >
+                    <span className="block text-sm font-black">{option.label}</span>
+                    <span className={`block text-[11px] leading-snug mt-1 ${isSelected ? 'text-blue-50' : 'text-slate-600'}`}>
+                      {option.helper}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {activePrintablePacket && (
+              <div className="grid gap-2">
+                {activePrintablePacket.sections.slice(0, 4).map(section => (
+                  <div key={section.title} className="rounded-2xl bg-blue-50 border border-blue-100 p-3">
+                    <p className="text-xs font-black text-slate-950">{section.title}</p>
+                    <p className="text-xs text-slate-700 mt-1 leading-relaxed whitespace-pre-wrap">
+                      {section.body.split('\n').slice(0, 4).join('\n')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
             <button
@@ -3103,7 +3340,7 @@ export function AssessmentTab() {
               className={`${BUTTON_CLASS} bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2`}
             >
               <Printer size={16} />
-              Print / Save PDF
+              Print Selected Packet
             </button>
             <button
               type="button"
@@ -3119,13 +3356,15 @@ export function AssessmentTab() {
               This is an editable draft based on local checklist entries and recordings. The SLP remains responsible for reviewing audio, selecting formal measures, interpreting results, and writing final diagnostic conclusions.
             </p>
           </div>
-          <PrintableHandout
-            title="Speech Practice Sheet"
-            studentName={selectedClient?.displayName}
-            subtitle="Plain-language practice after today’s speech assessment."
-            sections={buildPatientHandoutSections(activeAssessment, activeItems, supportPlanDraft)}
-            footerNote="This handout is clinician-reviewed practice guidance. It does not diagnose or replace the SLP’s clinical judgment."
-          />
+          {activePrintablePacket && (
+            <PrintableHandout
+              title={activePrintablePacket.title}
+              studentName={selectedClient?.displayName}
+              subtitle={activePrintablePacket.subtitle}
+              sections={activePrintablePacket.sections}
+              footerNote={activePrintablePacket.footerNote}
+            />
+          )}
         </section>
       ) : (
         <section className="space-y-3">
