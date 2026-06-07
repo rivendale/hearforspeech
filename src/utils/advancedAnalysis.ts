@@ -11,6 +11,13 @@ export interface AnalysisCapabilities {
   default_retention: string;
   engines: AdvancedAnalysisEngine[];
   endpoints: string[];
+  limits?: {
+    max_upload_mb: number;
+    max_batch_files: number;
+    default_retention: string;
+    accepted_audio_types: string[];
+  } | null;
+  workflow_notes?: string[];
   clinical_notice: string;
 }
 
@@ -31,14 +38,24 @@ export interface AdvancedAnalysisMetrics {
   shimmer_local?: number | null;
 }
 
+export interface AnalysisReviewFact {
+  label: string;
+  value: string;
+  unit?: string | null;
+  source: string;
+  caution?: string | null;
+}
+
 export interface AdvancedAnalysisResult {
   job_id: string;
+  request_id?: string | null;
   status: 'complete' | 'failed';
   prompt_text: string;
   filename: string;
   content_type?: string | null;
   engine: AdvancedAnalysisEngine;
   metrics: AdvancedAnalysisMetrics | null;
+  review_facts?: AnalysisReviewFact[];
   warnings: string[];
   clinician_summary: string;
   clinical_notice: string;
@@ -62,10 +79,12 @@ export interface AssessmentSessionAnalysisItemResult {
   analysis: AdvancedAnalysisResult | null;
   warnings: string[];
   summary_facts: string[];
+  review_facts?: AnalysisReviewFact[];
 }
 
 export interface AssessmentSessionAnalysisResult {
   job_id: string;
+  request_id?: string | null;
   status: 'complete' | 'partial' | 'failed';
   assessment_id?: string | null;
   client_label?: string | null;

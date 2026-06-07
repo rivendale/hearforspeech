@@ -1,36 +1,33 @@
 ## Summary
 
-Polishes the phone-first diagnostic workflow so an SLP can start from the Home screen, choose a diagnostic, print a patient read-ahead worksheet, record line-by-line, and keep moving without horizontal clipping or extra navigation.
+Adds the next Diagnostic Portal pass: patient-facing read mode, fast SLP scoring controls, backend review-fact cards, and a richer Home patient timeline.
 
 ## What changed
 
-- Fixes mobile header/home layout overflow so small phones show the full Home workflow.
-- Simplifies Home copy around the core path: pick patient, record lines, print plan.
-- Adds a three-step Home runway for **Pick Patient → Record Lines → Print Plan**.
-- Adds a patient read-ahead worksheet on the assessment Ready screen before recording begins.
-- Adds **Print / Save PDF Worksheet** using the browser/device print sheet, keeping the app dependency-free.
-- Adds a live diagnostic runway for **Say → Record → Tap Score → Next**.
-- Adds **Next Line** to jump to the next unfinished assessment line.
-- Updates README assessment instructions and handout/PDF wording.
+- Renames the primary assessment entry point to **Diagnostic Portal**.
+- Adds **Patient Read Mode**, a clean full-screen prompt view that hides private notes.
+- Adds a current-line **SLP scoring drawer** for result taps, cueing, and one-tap note ideas.
+- Adds objective backend **review fact cards** for acoustic metrics returned by the API.
+- Surfaces backend upload and batch limits when `/v1/capabilities` provides them.
+- Expands the Home patient timeline with recent diagnostics, therapy sessions, and analysis status.
+- Updates README guidance for Patient Read Mode, the scoring drawer, and review facts.
 
 ## Why this helps SLPs
 
-The app now supports the real in-room flow more directly: the clinician can prepare readable prompts for the patient, run the assessment from a phone, avoid hunting through sections, and finish with printable materials.
+An SLP can now hand the phone to a student or place it in front of them without exposing private notes, then immediately return to clinician scoring. The flow is still quick, local-first, and clinician-controlled.
 
 ## Data/privacy notes
 
-- Worksheet printing is generated locally in the browser.
+- Patient Read Mode only shows the current prompt, not clinician notes or other client data.
+- Review fact cards are objective descriptors for SLP review only.
 - No new cloud services, analytics, server storage, or external AI calls are added.
-- Printed worksheets remain clinician-controlled and should only be shared after SLP review.
 
 ## Testing performed
 
 - `npm run lint`
 - `npm run build`
-- Mobile-emulated layout check at 390px width with no horizontal overflow.
 
 ## Known limitations / follow-up ideas
 
-- Browser PDF creation still uses the native print/save-as-PDF flow instead of bundling a PDF library.
-- A future pass could add a dedicated worksheet template editor for clinics.
-- A future pass could add first-run coach marks, but the current flow avoids requiring a guide.
+- Patient Read Mode currently records the active line only; a future pass could add a continuous teleprompter queue.
+- Review facts depend on the backend deployment exposing `review_facts`; the frontend falls back to local metric formatting if needed.
