@@ -739,7 +739,7 @@ export function SessionTab() {
 
   const deleteSelectedClientData = async () => {
     if (!selectedClient) return;
-    const confirmed = confirm(`Delete ${selectedClient.displayName} and all guided goals, sessions, trials, and listener checks stored for this client on this device?`);
+    const confirmed = confirm(`Delete ${selectedClient.displayName} and all guided goals, sessions, trials, listener checks, and SLP analyzer labels stored for this client on this device?`);
     if (!confirmed) return;
 
     const relatedSessions = await db.guidedSessions.where('clientId').equals(selectedClient.id).toArray();
@@ -748,7 +748,7 @@ export function SessionTab() {
       .map(session => session.sessionLogId)
       .filter((id): id is number => typeof id === 'number');
 
-    await db.transaction('rw', [db.clients, db.goals, db.guidedSessions, db.trials, db.listenerChecks, db.logs], async () => {
+    await db.transaction('rw', [db.clients, db.goals, db.guidedSessions, db.trials, db.listenerChecks, db.speechSoundReviews, db.logs], async () => {
       if (sessionIds.length > 0) {
         await db.trials.where('sessionId').anyOf(sessionIds).delete();
       }
@@ -756,6 +756,7 @@ export function SessionTab() {
         await db.logs.bulkDelete(legacyLogIds);
       }
       await db.listenerChecks.where('clientId').equals(selectedClient.id).delete();
+      await db.speechSoundReviews.where('clientId').equals(selectedClient.id).delete();
       await db.guidedSessions.where('clientId').equals(selectedClient.id).delete();
       await db.goals.where('clientId').equals(selectedClient.id).delete();
       await db.clients.delete(selectedClient.id);

@@ -42,6 +42,7 @@ export type AssessmentStatus = 'draft' | 'completed';
 export type AssessmentTemplate = 'adolescent_speech_intelligibility' | 'teen_speech_sound_inventory' | 'rhotic_r_diagnostic' | 'connected_speech_participation' | 'school_participation_interview';
 export type AssessmentItemKind = 'checklist' | 'question' | 'student_rating' | 'caregiver_interview' | 'participation' | 'speech_sample' | 'sound_probe' | 'stimulability' | 'listener_check' | 'summary';
 export type AdvancedAnalysisStatus = 'not_requested' | 'running' | 'complete' | 'error';
+export type SpeechSoundReviewDecision = 'confirmed' | 'ruled_out' | 'uncertain';
 
 export interface AssessmentItemAdvancedAnalysis {
   status: AdvancedAnalysisStatus;
@@ -154,6 +155,23 @@ export interface ListenerCheck {
   createdAt: string;
 }
 
+export interface SpeechSoundReview {
+  id: string;
+  clientId: string;
+  recordingId?: number;
+  analysisJobId?: string;
+  target: string;
+  targetWord?: string | null;
+  wordPosition?: string | null;
+  category?: string | null;
+  candidateErrorType: string;
+  candidateScore: number;
+  slpDecision: SpeechSoundReviewDecision;
+  confirmedErrorType?: string;
+  notes?: string;
+  createdAt: string;
+}
+
 export interface Assessment {
   id: string;
   clientId: string;
@@ -215,6 +233,7 @@ export class HearForSpeechDB extends Dexie {
   guidedSessions!: Table<GuidedSession>;
   trials!: Table<Trial>;
   listenerChecks!: Table<ListenerCheck>;
+  speechSoundReviews!: Table<SpeechSoundReview>;
   assessments!: Table<Assessment>;
   assessmentItems!: Table<AssessmentItem>;
 
@@ -252,6 +271,18 @@ export class HearForSpeechDB extends Dexie {
       assessments: 'id, clientId, template, status, startedAt, updatedAt',
       assessmentItems: 'id, assessmentId, sectionKey, kind, status, sortOrder, updatedAt'
     });
+    this.version(8).stores({
+      logs: '++id, date, rating, pcc, environment, environmentalDifficulty, environmentalNoiseLevel, naiveListenerScore',
+      recordings: '++id, date, name',
+      clients: 'id, displayName, initials, updatedAt',
+      goals: 'id, clientId, status, targetArea, targetPhoneme, level, updatedAt',
+      guidedSessions: 'id, clientId, goalId, date, createdAt, target, practiceLevel',
+      trials: 'id, sessionId, createdAt, result, cueLevel',
+      listenerChecks: 'id, clientId, sessionId, createdAt, score',
+      speechSoundReviews: 'id, clientId, recordingId, analysisJobId, target, slpDecision, createdAt',
+      assessments: 'id, clientId, template, status, startedAt, updatedAt',
+      assessmentItems: 'id, assessmentId, sectionKey, kind, status, sortOrder, updatedAt'
+    });
   }
 }
 
@@ -267,6 +298,7 @@ export interface BackupPayload {
     guidedSessions?: GuidedSession[];
     trials?: Trial[];
     listenerChecks?: ListenerCheck[];
+    speechSoundReviews?: SpeechSoundReview[];
     assessments?: Assessment[];
     assessmentItems?: AssessmentItem[];
     recordings: {

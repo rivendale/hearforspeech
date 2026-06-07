@@ -13,7 +13,7 @@ interface ExportTabProps {
 
 export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [stats, setStats] = useState({ logsCount: 0, recordingsCount: 0, clientsCount: 0, guidedSessionsCount: 0, assessmentsCount: 0 });
+  const [stats, setStats] = useState({ logsCount: 0, recordingsCount: 0, clientsCount: 0, guidedSessionsCount: 0, assessmentsCount: 0, reviewLabelsCount: 0 });
   const [clipboardInput, setClipboardInput] = useState('');
   const [importMode, setImportMode] = useState<'merge' | 'overwrite'>('merge');
   const [isCopied, setIsCopied] = useState(false);
@@ -40,14 +40,15 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
   const { masterKey, isSecurityEnabled } = useStore();
 
   const loadStats = async () => {
-    const [logsCount, recordingsCount, clientsCount, guidedSessionsCount, assessmentsCount] = await Promise.all([
+    const [logsCount, recordingsCount, clientsCount, guidedSessionsCount, assessmentsCount, reviewLabelsCount] = await Promise.all([
       db.logs.count(),
       db.recordings.count(),
       db.clients.count(),
       db.guidedSessions.count(),
-      db.assessments.count()
+      db.assessments.count(),
+      db.speechSoundReviews.count()
     ]);
-    setStats({ logsCount, recordingsCount, clientsCount, guidedSessionsCount, assessmentsCount });
+    setStats({ logsCount, recordingsCount, clientsCount, guidedSessionsCount, assessmentsCount, reviewLabelsCount });
   };
 
   const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -66,10 +67,11 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
       db.recordings.count(),
       db.clients.count(),
       db.guidedSessions.count(),
-      db.assessments.count()
-    ]).then(([logsCount, recordingsCount, clientsCount, guidedSessionsCount, assessmentsCount]) => {
+      db.assessments.count(),
+      db.speechSoundReviews.count()
+    ]).then(([logsCount, recordingsCount, clientsCount, guidedSessionsCount, assessmentsCount, reviewLabelsCount]) => {
       if (active) {
-        setStats({ logsCount, recordingsCount, clientsCount, guidedSessionsCount, assessmentsCount });
+        setStats({ logsCount, recordingsCount, clientsCount, guidedSessionsCount, assessmentsCount, reviewLabelsCount });
       }
     }).catch(console.error);
     return () => {
@@ -78,13 +80,14 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
   }, []);
 
   const getSerializedPayload = async (format: 'full' | 'logs-only' = 'full') => {
-    const [storedLogs, clients, goals, guidedSessions, trials, listenerChecks, assessments, assessmentItems] = await Promise.all([
+    const [storedLogs, clients, goals, guidedSessions, trials, listenerChecks, speechSoundReviews, assessments, assessmentItems] = await Promise.all([
       db.logs.toArray(),
       db.clients.toArray(),
       db.goals.toArray(),
       db.guidedSessions.toArray(),
       db.trials.toArray(),
       db.listenerChecks.toArray(),
+      db.speechSoundReviews.toArray(),
       db.assessments.toArray(),
       db.assessmentItems.toArray()
     ]);
@@ -128,6 +131,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
         guidedSessions,
         trials,
         listenerChecks,
+        speechSoundReviews,
         assessments,
         assessmentItems,
         recordings: serializedRecordings
@@ -257,7 +261,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
       throw new Error("Incorrect application backup format.");
     }
 
-    const { logs, recordings, clients, goals, guidedSessions, trials, listenerChecks, assessments, assessmentItems } = parsed.data;
+    const { logs, recordings, clients, goals, guidedSessions, trials, listenerChecks, speechSoundReviews, assessments, assessmentItems } = parsed.data;
     if (!Array.isArray(logs)) {
       throw new Error("Corrupted logs structure.");
     }
@@ -275,7 +279,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
       );
       if (!proceed) return;
 
-      await db.transaction('rw', [db.logs, db.recordings, db.clients, db.goals, db.guidedSessions, db.trials, db.listenerChecks, db.assessments, db.assessmentItems], async () => {
+      await db.transaction('rw', [db.logs, db.recordings, db.clients, db.goals, db.guidedSessions, db.trials, db.listenerChecks, db.speechSoundReviews, db.assessments, db.assessmentItems], async () => {
         await db.logs.clear();
         await db.recordings.clear();
         await db.clients.clear();
@@ -283,6 +287,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
         await db.guidedSessions.clear();
         await db.trials.clear();
         await db.listenerChecks.clear();
+        await db.speechSoundReviews.clear();
         await db.assessments.clear();
         await db.assessmentItems.clear();
 
@@ -322,12 +327,13 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
         if (Array.isArray(guidedSessions)) await db.guidedSessions.bulkPut(guidedSessions.map(session => ({ ...session, sessionLogId: undefined })));
         if (Array.isArray(trials)) await db.trials.bulkPut(trials);
         if (Array.isArray(listenerChecks)) await db.listenerChecks.bulkPut(listenerChecks);
+        if (Array.isArray(speechSoundReviews)) await db.speechSoundReviews.bulkPut(speechSoundReviews);
         if (Array.isArray(assessments)) await db.assessments.bulkPut(assessments);
         if (Array.isArray(assessmentItems)) await db.assessmentItems.bulkPut(assessmentItems);
       });
     } else {
       // Merge logs & recordings (avoid duplicates by checking date/name)
-      await db.transaction('rw', [db.logs, db.recordings, db.clients, db.goals, db.guidedSessions, db.trials, db.listenerChecks, db.assessments, db.assessmentItems], async () => {
+      await db.transaction('rw', [db.logs, db.recordings, db.clients, db.goals, db.guidedSessions, db.trials, db.listenerChecks, db.speechSoundReviews, db.assessments, db.assessmentItems], async () => {
         // Read decrypted/plaintext properties to check uniqueness
         let currentLogs = await db.logs.toArray();
         if (masterKey) {
@@ -379,6 +385,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
         if (Array.isArray(guidedSessions)) await db.guidedSessions.bulkPut(guidedSessions.map(session => ({ ...session, sessionLogId: undefined })));
         if (Array.isArray(trials)) await db.trials.bulkPut(trials);
         if (Array.isArray(listenerChecks)) await db.listenerChecks.bulkPut(listenerChecks);
+        if (Array.isArray(speechSoundReviews)) await db.speechSoundReviews.bulkPut(speechSoundReviews);
         if (Array.isArray(assessments)) await db.assessments.bulkPut(assessments);
         if (Array.isArray(assessmentItems)) await db.assessmentItems.bulkPut(assessmentItems);
       });
@@ -444,7 +451,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
   };
 
   const handleClearDatabase = async () => {
-    const confirm1 = confirm("DANGER: This will permanently delete ALL clients, goals, guided sessions, assessment guides, session metrics, listener checks, trials, and recordings stored on this device. Continue?");
+    const confirm1 = confirm("DANGER: This will permanently delete ALL clients, goals, guided sessions, assessment guides, session metrics, listener checks, SLP analyzer labels, trials, and recordings stored on this device. Continue?");
     if (!confirm1) return;
     const confirm2 = confirm("Are you absolutely sure? This cannot be undone.");
     if (!confirm2) return;
@@ -456,6 +463,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
     await db.guidedSessions.clear();
     await db.trials.clear();
     await db.listenerChecks.clear();
+    await db.speechSoundReviews.clear();
     await db.assessments.clear();
     await db.assessmentItems.clear();
     alert("Local database wiped.");
@@ -628,7 +636,7 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
           </p>
         </div>
 
-        <div className="grid grid-cols-5 gap-2 bg-slate-900/50 p-4 rounded-2xl border border-slate-800/80">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 bg-slate-900/50 p-4 rounded-2xl border border-slate-800/80">
           <div className="text-center">
             <span className="text-[9px] font-bold text-slate-500 tracking-wider uppercase block">Clients</span>
             <span className="text-xl font-bold text-slate-200 mt-1 block">{stats.clientsCount}</span>
@@ -648,6 +656,10 @@ export function ExportTab({ registerLocalPasskey, disableSecurity }: ExportTabPr
           <div className="text-center border-l border-slate-800">
             <span className="text-[9px] font-bold text-slate-500 tracking-wider uppercase block">Audio</span>
             <span className="text-xl font-bold text-slate-200 mt-1 block">{stats.recordingsCount}</span>
+          </div>
+          <div className="text-center border-l border-slate-800">
+            <span className="text-[9px] font-bold text-slate-500 tracking-wider uppercase block">Labels</span>
+            <span className="text-xl font-bold text-slate-200 mt-1 block">{stats.reviewLabelsCount}</span>
           </div>
         </div>
       </div>
