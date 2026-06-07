@@ -63,6 +63,9 @@ export interface AdvancedAnalysisResult {
 
 export interface SpeechSoundCandidate {
   target: string;
+  target_word?: string | null;
+  word_position?: string | null;
+  category?: string | null;
   expected?: string | null;
   observed?: string | null;
   error_type:
@@ -73,6 +76,7 @@ export interface SpeechSoundCandidate {
     | 'possible_rate_or_intelligibility'
     | 'needs_review';
   confidence: 'low' | 'medium' | 'high';
+  score: number;
   evidence: string[];
   start_seconds?: number | null;
   end_seconds?: number | null;
@@ -356,7 +360,7 @@ export const formatSpeechSoundAnalysisForNotes = (result: SpeechSoundAnalysisRes
   const metrics = result.metrics;
   const candidates = result.possible_errors.length
     ? result.possible_errors.map(candidate => (
-      `${candidate.target}: ${candidate.error_type.replaceAll('_', ' ')} (${candidate.confidence}); ${candidate.review_prompt}`
+      `${candidate.target_word ? `${candidate.target_word} ` : ''}${candidate.target}: ${candidate.error_type.replaceAll('_', ' ')} (${candidate.confidence}, score ${candidate.score.toFixed(2)}); ${candidate.review_prompt}`
     ))
     : ['No possible speech-sound error candidates were returned.'];
 
