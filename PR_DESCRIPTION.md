@@ -1,24 +1,29 @@
 ## Summary
 
-Adds extra bottom scroll breathing room so fixed navigation does not cover final page content, plus in-app refresh/cache controls to make latest-version reloads easier.
+Simplifies the app’s front door around what the SLP actually asked for: pick a patient, record speech, mark what is heard, save/copy a quick note, and print a starter diagnostic when needed.
 
 ## What changed
 
-- Adds a larger safe-area-aware bottom reserve for the app scroll container.
-- Adds an end-of-scroll spacer so final cards can scroll above the bottom nav.
-- Adds safe-area padding to the fixed bottom navigation.
-- Adds **Refresh Latest App** and **Clear App Cache** controls in the Analysis Readiness panel.
-- Updates PWA generation with `skipWaiting`, `clientsClaim`, and outdated-cache cleanup.
-- Documents latest-version refresh steps in README.
+- Replaces the complex Home workflow with a large, phone-first **Pick patient → Record speech → Mark what you hear** flow.
+- Adds one-tap patient creation/selection directly on Home.
+- Adds a big Start/Stop recording control with the starter reading passage visible above it.
+- Adds SLP-controlled speech observation chips for common concerns such as distortions, omissions, reduced intelligibility, fast rate, low volume, and “better with model.”
+- Adds quick note copy/save actions as unscored local guided-session notes.
+- Adds a printable **14-year-old intelligibility starter** with a patient reading page and SLP listening checklist.
+- Keeps advanced therapy session, data/review, and diagnostic portal tools available behind “More tools if needed.”
+- Updates README to explain the simpler no-doc workflow first.
 
 ## Why this helps SLPs
 
-Therapists can scroll all the way to the final text/buttons on Assess, Session, and Data without the bottom nav hiding content. If a phone or installed PWA keeps showing an older version, the update controls are now visible in-app.
+The first screen no longer asks the clinician to understand the whole app. It supports the real “I only have my phone and need to start now” use case: select patient, record, mark speech observations, and decide whether to continue with a diagnostic.
 
 ## Data/privacy notes
 
-- Cache clearing only targets app shell caches, not IndexedDB patient/session records.
-- No recording, export, analysis, backend, or clinical data model behavior changes.
+- Recordings continue to save locally in the browser’s existing recording store.
+- If the app has a local master key, quick recordings use the existing local encryption helper.
+- The quick observation flow is SLP-confirmed and does not claim automatic diagnosis or eligibility decisions.
+- Quick checks do not create fake PCC/rating progress points.
+- Printed starter materials are generated locally and should be reviewed by the SLP before sharing.
 
 ## Testing performed
 
@@ -27,4 +32,5 @@ Therapists can scroll all the way to the final text/buttons on Assess, Session, 
 
 ## Known limitations / follow-up ideas
 
-- Browser/device PWA caching can still require closing and reopening the installed app on some phones after major updates.
+- Automatic speech-error detection remains a future backend-assisted feature and should stay clinician-reviewed.
+- The printable starter is intentionally lightweight; future packets can add age-specific articulation, intelligibility, voice/resonance, and connected-speech variants.

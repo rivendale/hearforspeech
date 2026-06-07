@@ -1,12 +1,16 @@
 # Hear for Speech
 
-Hear for Speech is a local-first, offline-capable Progressive Web App (PWA) for Speech-Language Pathologists (SLPs), students, and caregivers. The app supports quick therapy-session data collection, editable documentation, home practice, listener checks, acoustic biofeedback, and local export/import.
+Hear for Speech is a local-first, offline-capable Progressive Web App (PWA) for Speech-Language Pathologists (SLPs), students, and caregivers. The app now opens with the simplest clinical path first: select a patient, record a speech sample, mark what the SLP hears, and print or launch a diagnostic starter when needed.
 
-The primary workflow is now session-centered:
+The quick-use workflow is:
+
+**Patient → Record speech → Mark what you hear → Save note → Print starter diagnostic**
+
+The fuller therapy workflow remains available:
 
 **Client or student → Goal → Session → Trials → Cueing → Session note → Home practice → Progress**
 
-The interface is brighter and mobile-first so an SLP can use it on a phone in a real session. The Session and Assess tabs include a small three-step guide: pick the path, capture speech/data, then print or save a patient-friendly practice sheet.
+The interface is brighter and mobile-first so an SLP can use it on a phone in a real session without reading a guide. Advanced assessment, session, data, listener-check, and export tools remain available behind simple secondary actions.
 
 Hear for Speech supports SLP judgment. It does not diagnose, prescribe treatment, replace clinical decision-making, or determine eligibility.
 
@@ -25,14 +29,29 @@ Hear for Speech is installable and offline-capable, so browsers may keep app fil
 
 ## Guided SLP Workflow
 
-The app opens to a no-doc **Home** screen:
+The app opens to a no-doc **Home** screen built for a phone in the therapy room:
 
-1. Tap **New Patient** or **Load Patient**.
-2. Choose **Diagnostic Portal**, **Start Therapy Session**, or **Review Results**.
-3. Pick an assessment pack such as **10-min screen**, **Full articulation / intelligibility**, **/r/ deep dive**, **Voice / resonance**, **Connected speech**, **School participation**, or **Listener Check**.
-4. Follow the line-by-line prompts with the large record bar.
-5. Let the analysis queue move recordings from **Queued** to **Analyzing** to **Ready**.
-6. Finish with editable diagnostic summary, school note, SOAP note, home practice, and printable PDF.
+1. Select an existing patient or type a new patient name.
+2. Ask the patient to read the short starter passage shown on screen.
+3. Tap the large **Start Recording** button, then **Stop Recording**.
+4. Tap the speech observations the SLP hears, such as sound distortion, omission, reduced intelligibility, fast rate, low volume, or “better with model.”
+5. Add an optional quick note.
+6. Tap **Copy Note** or **Save Note**.
+7. If a diagnostic is needed, print the **14-year-old intelligibility starter** or open the longer diagnostic portal.
+
+This front door is intentionally SLP-controlled. The app helps organize recordings, prompts, checklists, and notes; it does not automatically diagnose speech errors or replace clinical judgment.
+Quick speech checks save as unscored local notes so they do not create misleading PCC or accuracy trends.
+
+### 14-Year-Old Intelligibility Starter
+
+Home includes a printable starter page for an adolescent speech clarity screen. It gives:
+
+- A patient-facing reading passage and word list
+- A connected-speech prompt
+- An SLP listening checklist for sound errors, intelligibility, cueing response, and next steps
+- Blank note lines for what was hard, what helped, and what to do next
+
+Use the starter when the SLP needs a quick first sample before deciding whether to continue with a full articulation/intelligibility diagnostic, /r/ deep dive, connected-speech sample, listener check, or formal measure.
 
 ### Start Session
 1. Open the app to the **Session** tab.
