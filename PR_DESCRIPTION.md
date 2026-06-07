@@ -1,42 +1,34 @@
 ## Summary
 
-Adds session-centered SLP workflows that open on guided **Start Session** and **Assess** experiences: client/student, goal, target, practice level, trials, cueing, assessment prompts, recordings, notes, home practice, and progress.
+Makes the **Assess** tab dramatically simpler for phone-based diagnostic starts: **New Patient** or **Load Patient**, confirm profile details, choose one diagnostic path, record line-by-line prompts, and generate editable SLP-controlled analysis.
 
 ## What changed
 
-- Added local Dexie tables for client profiles, goals, guided sessions, trials, and listener checks with a backward-compatible v6 migration.
-- Added a new `SessionTab` as the default landing tab with large trial buttons, cue-level capture, strategy chips, editable School/IEP and SOAP notes, editable home practice, and client progress.
-- Added a simple Listener Check overlay that hides unrelated client data and stores results with guided session history.
-- Added an adolescent diagnostic-style Assessment Coach with multiple templates: broad teen speech clarity, /r/ deep dive, connected speech/intelligibility, and school participation interview.
-- Added line-by-line “Say this” scripts, quick analysis tags, sound/word-position pattern summaries, student/caregiver participation prompts, stimulability/cueing flags, listener support, and editable analysis.
-- Added platform-aware browser built-in AI detection for newer `LanguageModel` and legacy `window.ai`, with clear Pixel/Android guidance when Chrome flags are unavailable.
-- Added Dexie v7 assessment and assessment-item tables, with assessment recordings linked through the existing local recordings table.
-- Updated export/import to include guided-session tables while preserving older log/recording backup support.
-- Renamed confusing UI labels and softened privacy/compliance copy.
-- Added recording consent and export-sensitive-data warnings.
-- Rewrote README around the guided workflow, Listener Check, local-first privacy, safe exports, and clinical responsibility.
+- Reworked the Assess landing screen into a bright, mobile-first launcher with clear phases: patient choice, new patient, load patient, profile, diagnostic, and ready.
+- Added local-only assessment profile fields for age, gender/voice context, language/dialect context, hearing/listening access, diagnostic checklist lenses, and quick questionnaire/check selections.
+- Added research-informed local checklist lines for language/dialect context, hearing/listening access, voice/resonance, noise/distance, student impact, caregiver/teacher input, Listener Check, and literacy follow-up flags.
+- Added two plain-language diagnostic paths: **Voice / resonance check** and **Noise / listening check**.
+- Updated generated diagnostic summaries to include profile context, selected diagnostic lenses, selected quick checks, and conservative “Consider...” follow-up flags.
+- Updated README instructions and backup schema documentation for the simplified diagnostic workflow and new local fields.
 
 ## Why this helps SLPs
 
-SLPs can now open the app, choose a student and goal, run trials with minimal taps, or walk line-by-line through adolescent diagnostic templates with recording, “Say this” prompts, quick scoring, sound-pattern analysis, and structured follow-up flags. The app drafts documentation while keeping the clinician in control.
+An SLP can sit down with only a phone, create or load a student in a few taps, pick a diagnostic, follow scripted lines, record speech, score checklist items, and leave with editable analysis and practice planning text. The app stays guided without hiding clinical judgment.
 
 ## Data/privacy notes
 
-- No cloud services, third-party analytics, server storage, or external AI calls were added.
-- New clinical and assessment data stays in local IndexedDB/Dexie tables.
-- Google Pixel / Android Chrome users now see clear copy that Chrome built-in Gemini Nano / Prompt API is not currently exposed to Android web apps when flags are unavailable; the app continues with local guided tools.
-- Exported files and handoffs may contain protected or sensitive information, so in-app and README copy now remind clinicians to follow consent, retention, backup, HIPAA, and FERPA review requirements.
-- The app supports clinician judgment and does not diagnose or determine treatment.
+- No cloud services, analytics, server storage, or external AI calls were added.
+- New fields are optional, local-only Dexie/IndexedDB data and do not require a breaking migration.
+- Voice/resonance, hearing/listening, language/dialect, and literacy prompts are documentation and follow-up aids, not automated diagnoses.
+- The workflow continues to require recording/assessment consent before saving audio.
 
 ## Testing performed
 
 - `npm run lint`
 - `npm run build`
 
-No test script is currently defined in `package.json`.
-
 ## Known limitations / follow-up ideas
 
-- New guided-session and assessment checklist tables are local IndexedDB records and are protected by the app lock screen, but field-level encryption currently remains limited to legacy logs and recordings.
-- Listener Check uses simple clear/unclear item scoring; future work could add reusable item sets per target.
-- QR handoff remains optimized for lightweight legacy logs; full guided-session backup is available through JSON export/import.
+- Open-source acoustic tools such as forced aligners, phoneme recognizers, and acoustic-analysis libraries remain future research paths because most require native Python/server/WASM integration.
+- Listener Check remains simple clear/unclear scoring; future work could add reusable item sets and richer listener summaries.
+- Assessment profile fields are stored with assessments; a future client-profile editor could make longitudinal demographics/history easier to manage.
