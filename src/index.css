@@ -315,6 +315,10 @@ button, a, [role="button"], select, input[type="range"] {
     background: #f8fbff;
   }
 
+  .hfs-print-section-page-break {
+    break-before: page;
+  }
+
   .hfs-print-sections h2 {
     margin: 0 0 8px;
     color: #1d4ed8;
@@ -326,6 +330,13 @@ button, a, [role="button"], select, input[type="range"] {
     color: #111827;
     font-size: 12.5px;
     line-height: 1.45;
+  }
+
+  .hfs-print-checkline {
+    padding: 7px 8px;
+    border: 1px dashed #bfdbfe;
+    border-radius: 10px;
+    background: #ffffff;
   }
 
   .hfs-print-footer {
