@@ -144,6 +144,22 @@ Each assessment line includes:
 
 Assessment audio is saved locally through the same recording storage used elsewhere in the app. If local security is enabled, recordings are encrypted using the existing local master key flow.
 
+### Optional Advanced Analysis Backend
+
+HearForSpeech can optionally connect to the separate backend repo, [`rivendale/hearforspeech-server`](https://github.com/rivendale/hearforspeech-server), for acoustic metrics beyond local recording and checklist scoring.
+
+To enable the panel locally, create `.env`:
+
+```bash
+VITE_HFS_ANALYSIS_API_URL=https://api.hearforspeech.com
+# Optional, only if the backend requires it:
+VITE_HFS_ANALYSIS_API_KEY=
+```
+
+When an assessment line has a linked recording, the SLP can open **Run Advanced Analysis**, confirm consent, upload the latest recording for temporary processing, and insert returned metrics into editable notes.
+
+The backend is optional. Audio leaves the device only when the clinician explicitly runs the analysis. Returned metrics are supporting acoustic descriptors, not automated diagnoses or eligibility decisions.
+
 The generated assessment summary is editable and conservative. It summarizes checklist entries, recordings, sound probes by sound/word position, cueing/stimulability, functional participation contexts, and “Consider...” follow-up flags. The SLP remains responsible for reviewing recordings, selecting formal measures when required, interpreting findings, and writing final diagnostic conclusions.
 
 ### Session Notes
