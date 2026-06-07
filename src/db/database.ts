@@ -176,6 +176,8 @@ export interface Assessment {
   completedAt?: string;
   summary?: string;
   recommendations?: string;
+  schoolNote?: string;
+  soapNote?: string;
   createdAt: string;
   updatedAt: string;
 }

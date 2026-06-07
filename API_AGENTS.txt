@@ -21,6 +21,12 @@ Current endpoints
 - GET /health
 - GET /v1/capabilities
 - POST /v1/analysis/parselmouth
+- POST /v1/analysis/assessment-session
+
+Batch assessment endpoint
+- POST /v1/analysis/assessment-session accepts `assessment_json` plus one or more `files`.
+- Name uploaded files with the assessment line id as the filename stem, for example `line-id.webm`.
+- Return values should be merged back into each assessment line as clinician-reviewed supporting data.
 
 Privacy and safety
 - Audio leaves the browser only for consent-confirmed backend analysis.

@@ -1,29 +1,36 @@
 ## Summary
 
-Makes the guided assessment workflow use the production HearForSpeech analysis API by default and moves acoustic analysis from a manual, consent-checkbox panel into a clearer background workflow.
+Makes HearForSpeech feel like a zero-doc, phone-first clinical workflow: open the app, choose patient, choose assessment/session, record, analyze, and finish with editable documentation and printable practice.
 
 ## What changed
 
-- Defaults frontend analysis calls to `https://api.hearforspeech.com` and prevents production builds from accidentally using local-only API URLs.
-- Adds top-right **Analysis Ready** status based on live `/v1/capabilities` checks.
-- Adds an assessment-level **Auto analyze recordings** toggle.
-- Automatically analyzes newly recorded assessment lines in the background when consent is confirmed and the API is ready.
-- Persists per-line analysis snapshots on assessment items so generated drafts can include backend acoustic metrics.
-- Simplifies each assessment line to show **Analysis ready**, **Analyzing**, **Analyze Now**, or **Re-run** without a separate per-line consent checkbox.
-- Adds `API_AGENTS.txt` with the frontend/API contract and privacy boundaries.
-- Updates README copy for the production API, background analysis, and clinical-safety wording.
+- Adds a new default **Home** tab with **New Patient**, **Load Patient**, **Start Assessment**, **Start Therapy Session**, and **Review Results** actions.
+- Adds assessment-pack shortcuts for 10-minute screen, full articulation/intelligibility, /r/ deep dive, voice/resonance, connected speech, school participation, and Listener Check.
+- Adds Home patient timeline cards for recent patients, assessments, and analysis queue status.
+- Adds a large active-line recording bar with **Record**, **Stop**, **Re-record**, and **Skip**.
+- Surfaces analysis queue states as **Queued**, **Analyzing**, **Ready**, or **Needs review**.
+- Adds a one-tap **Analyze all recordings** action wired to the batch assessment-session API.
+- Expands the assessment end screen with editable diagnostic summary, school-style note, SOAP note, recommendations, home practice, copy, save, and print/PDF actions.
+- Documents the no-doc workflow and batch endpoint expectations.
+
+## Backend companion
+
+The companion backend PR adds:
+
+- `POST /v1/analysis/assessment-session`
+- `assessment_json` plus multiple uploaded recordings
+- Per-line analysis statuses and summary-ready facts
 
 ## Why this helps SLPs
 
-An SLP can start a guided diagnostic, record line-by-line prompts, and let acoustic metrics run in the background instead of opening a separate manual upload flow. Results appear where the SLP is already working and can be inserted into editable notes only when clinically useful.
+The app no longer asks the SLP to understand tabs before doing clinical work. It starts with what the SLP is trying to do, then keeps the workflow moving with large controls, clear assessment packs, automatic analysis status, and one end screen for documentation and family/student practice.
 
 ## Data/privacy notes
 
-- Recording consent is still required before assessment audio is recorded or uploaded.
-- Analysis uses temporary backend processing and returns objective acoustic descriptors only.
-- Backend metrics do not diagnose, determine eligibility, or replace SLP interpretation.
-- Local checklist workflows, recordings, drafts, exports, and printing still work if the API is offline.
-- Clinics remain responsible for device controls, consent, retention, backup handling, and HIPAA/FERPA compliance review.
+- Recording consent is still required before saving or uploading audio.
+- Backend output remains objective acoustic descriptors for SLP review only.
+- Generated notes are editable drafts and do not diagnose, determine eligibility, or replace clinical judgment.
+- The local workflow still works if backend analysis is unavailable.
 
 ## Testing performed
 
@@ -32,6 +39,7 @@ An SLP can start a guided diagnostic, record line-by-line prompts, and let acous
 
 ## Known limitations / follow-up ideas
 
-- MFA forced alignment and Allosaurus phone-candidate mode remain backend follow-ups.
-- A Gemma/local-LLM worker may help with structured draft summarization later, but it should be optional, self-hostable, and clearly separated from diagnostic decisions.
-- Background analysis currently runs when recordings finish; a future queue could retry failed uploads automatically.
+- The batch endpoint must be deployed on `api.hearforspeech.com` before **Analyze all recordings** succeeds in production.
+- Future work can add retry persistence for queued analysis jobs.
+- MFA forced alignment should come before Allosaurus/Gemma.
+- Optional Gemma support should stay as a separate draft-assist worker, not a diagnostic authority.
