@@ -96,23 +96,23 @@ export function HomeTab() {
 
   return (
     <div className="space-y-4 text-slate-950">
-      <section className="relative overflow-hidden rounded-[2rem] border border-sky-100 bg-gradient-to-br from-white via-sky-50 to-amber-50 p-5 shadow-xl shadow-sky-100/70 text-left">
-        <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-sky-300/35 blur-2xl" />
+      <section className="relative overflow-hidden rounded-[2rem] border border-sky-100 bg-gradient-to-br from-white via-sky-50 to-amber-50 p-4 sm:p-5 shadow-xl shadow-sky-100/70 text-left">
+        <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-sky-300/30 blur-2xl" />
         <div className="absolute -bottom-16 left-10 h-40 w-40 rounded-full bg-amber-200/45 blur-3xl" />
         <div className="relative space-y-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-sky-700">No-doc start</p>
-            <h2 className="mt-1 text-3xl font-black tracking-tight text-slate-950">What are we doing right now?</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-700">No-doc start</p>
+            <h2 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight text-slate-950 leading-tight">Start care in a few taps</h2>
             <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-700">
-              Start a patient, run an assessment, record speech, analyze it, and leave with editable notes and a printable plan.
+              Pick a patient, choose an assessment or therapy session, record speech, then finish with notes and a printable practice sheet.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 min-w-0">
             <button
               type="button"
               onClick={() => startAssessment({ phase: 'new_student' })}
-              className={`min-h-[88px] rounded-3xl bg-sky-600 px-4 py-4 text-left text-white shadow-lg shadow-sky-200 transition active:scale-98 ${FOCUS_CLASS}`}
+              className={`min-w-0 min-h-[88px] rounded-3xl bg-sky-600 px-4 py-4 text-left text-white shadow-lg shadow-sky-200 transition active:scale-98 ${FOCUS_CLASS}`}
             >
               <Plus size={24} />
               <span className="mt-2 block text-lg font-black">New Patient</span>
@@ -121,7 +121,7 @@ export function HomeTab() {
             <button
               type="button"
               onClick={() => startAssessment({ phase: 'load_student' })}
-              className={`min-h-[88px] rounded-3xl border-2 border-sky-300 bg-white px-4 py-4 text-left text-sky-950 shadow-sm transition active:scale-98 ${FOCUS_CLASS}`}
+              className={`min-w-0 min-h-[88px] rounded-3xl border-2 border-sky-300 bg-white px-4 py-4 text-left text-sky-950 shadow-sm transition active:scale-98 ${FOCUS_CLASS}`}
             >
               <UserRound size={24} />
               <span className="mt-2 block text-lg font-black">Load Patient</span>
@@ -132,9 +132,22 @@ export function HomeTab() {
           <div className="grid grid-cols-3 gap-2 text-center">
             <Metric label="Patients" value={clients.length.toString()} />
             <Metric label="Assessments" value={assessments.length.toString()} />
-            <Metric label="Analysis Ready" value={analyzedLineCount.toString()} />
+            <Metric label="Analyzed" value={analyzedLineCount.toString()} />
           </div>
         </div>
+      </section>
+
+      <section className="grid grid-cols-3 gap-2 text-center min-w-0">
+        {[
+          ['1', 'Pick patient'],
+          ['2', 'Record lines'],
+          ['3', 'Print plan']
+        ].map(([number, label]) => (
+          <div key={label} className="min-w-0 rounded-2xl border border-sky-100 bg-white/90 p-3 shadow-sm">
+            <span className="mx-auto flex h-7 w-7 items-center justify-center rounded-full bg-sky-600 text-sm font-black text-white">{number}</span>
+            <span className="mt-2 block text-[10px] font-black uppercase tracking-wide text-slate-600 leading-tight">{label}</span>
+          </div>
+        ))}
       </section>
 
       <section className="rounded-[2rem] border border-slate-200 bg-white p-4 text-left shadow-lg shadow-slate-100">
@@ -146,7 +159,7 @@ export function HomeTab() {
           <Sparkles className="text-amber-500" size={22} />
         </div>
         <div className="mt-3 grid grid-cols-1 gap-2">
-          <QuickAction title="Start Assessment" detail="Guided diagnostic with recording and analysis." icon={ClipboardList} onClick={() => startAssessment({ phase: 'patient_choice' })} />
+          <QuickAction title="Start Assessment" detail="Choose a diagnostic pack, record line-by-line, then print notes and worksheet." icon={ClipboardList} onClick={() => startAssessment({ phase: 'patient_choice' })} />
           <QuickAction title="Start Therapy Session" detail="Trials, cueing, notes, home practice." icon={Activity} onClick={() => jumpTo('session')} />
           <QuickAction title="Review Results" detail="Progress, old sessions, exports, and data." icon={BarChart3} onClick={() => jumpTo('tracker')} />
         </div>

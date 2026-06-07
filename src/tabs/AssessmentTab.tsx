@@ -903,6 +903,57 @@ const buildPatientHandoutSections = (
   ];
 };
 
+const buildReadAheadWorksheetSections = ({
+  diagnosticName,
+  diagnosticSubtitle,
+  primaryConcern,
+  timeBudgetMinutes,
+  customTarget,
+  templateItems
+}: {
+  diagnosticName: string;
+  diagnosticSubtitle: string;
+  primaryConcern: string;
+  timeBudgetMinutes: number;
+  customTarget: string;
+  templateItems: TemplateItem[];
+}) => {
+  const readLines = templateItems
+    .filter(item => isSpeechRecordable(item.kind))
+    .map(item => item.scriptText || item.prompt)
+    .map(line => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, 10);
+  const targetLine = customTarget.trim()
+    ? `Today's extra focus: ${customTarget.trim()}.`
+    : 'The SLP may choose a few extra words or sentences during the visit.';
+
+  return [
+    {
+      title: 'What We Are Doing',
+      body: `${diagnosticName}: ${diagnosticSubtitle}\nThis is a guided speech check. It helps the SLP listen, record examples, and plan next steps.\nApproximate time: ${timeBudgetMinutes || 20} minutes.`
+    },
+    {
+      title: 'What We Are Listening For',
+      body: `${primaryConcern || 'Speech clarity in words, sentences, and conversation.'}\n${targetLine}`
+    },
+    {
+      title: 'Words or Sentences You May Read',
+      body: readLines.length
+        ? readLines.map((line, index) => `${index + 1}. ${line}`).join('\n')
+        : 'The SLP will give you short words, sentences, or conversation prompts during the session.'
+    },
+    {
+      title: 'Before We Start',
+      body: 'Find a quiet spot if possible. Speak in your normal voice. It is okay to pause, ask for a repeat, or try again.'
+    },
+    {
+      title: 'Good Reminder',
+      body: 'This is not a pass/fail test. The goal is to help the SLP understand what is easy, what is hard, and what support helps.'
+    }
+  ];
+};
+
 const createId = () => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -1271,6 +1322,7 @@ export function AssessmentTab() {
   );
   const completedCount = activeItems.filter(item => item.status === 'complete').length;
   const progressPct = activeItems.length > 0 ? Math.round((completedCount / activeItems.length) * 100) : 0;
+  const remainingLineCount = activeItems.filter(item => item.status !== 'complete').length;
   const currentCoachItem = currentSectionItems.find(item => item.status !== 'complete') || currentSectionItems[0];
   const focusLabelSummary = focusTargets
     .map(target => FOCUS_OPTIONS.find(option => option.id === target)?.label || target)
@@ -2029,6 +2081,17 @@ export function AssessmentTab() {
     setSectionIndex(Math.max(activeSectionKeys.length - 1, 0));
   };
 
+  const goToNextIncomplete = () => {
+    const nextItem = activeItems.find(item => item.status !== 'complete');
+    if (!nextItem) {
+      finishAssessment();
+      return;
+    }
+
+    const nextIndex = activeSectionKeys.indexOf(nextItem.sectionKey);
+    setSectionIndex(Math.max(nextIndex, 0));
+  };
+
   const toggleItemTag = (item: AssessmentItem, tag: string) => {
     const currentTags = item.analysisTags || [];
     const analysisTags = currentTags.includes(tag)
@@ -2100,6 +2163,21 @@ export function AssessmentTab() {
   const selectedStudentLabel = selectedClient?.displayName || studentName.trim() || 'New student';
   const selectedDiagnosticName = selectedPreset?.title || getTemplateDefinition(selectedTemplate).title;
   const selectedDiagnosticSubtitle = selectedPreset?.subtitle || getTemplateDefinition(selectedTemplate).subtitle;
+  const readAheadWorksheetSections = useMemo(() => buildReadAheadWorksheetSections({
+    diagnosticName: selectedDiagnosticName,
+    diagnosticSubtitle: selectedDiagnosticSubtitle,
+    primaryConcern,
+    timeBudgetMinutes,
+    customTarget,
+    templateItems: getTemplateDefinition(selectedTemplate).items
+  }), [
+    customTarget,
+    primaryConcern,
+    selectedDiagnosticName,
+    selectedDiagnosticSubtitle,
+    selectedTemplate,
+    timeBudgetMinutes
+  ]);
 
   if (!activeAssessment) {
     return (
@@ -2324,6 +2402,53 @@ export function AssessmentTab() {
               <p className="text-sm text-slate-700 mt-1">{selectedDiagnosticName}: {selectedDiagnosticSubtitle}</p>
             </div>
 
+            <div className="grid grid-cols-4 gap-2 text-center">
+              {[
+                ['1', 'Read'],
+                ['2', 'Record'],
+                ['3', 'Score'],
+                ['4', 'Print']
+              ].map(([number, label]) => (
+                <div key={label} className="rounded-2xl bg-sky-50 border border-sky-100 p-2">
+                  <span className="block text-sm font-black text-sky-700">{number}</span>
+                  <span className="block text-[10px] font-extrabold uppercase tracking-wide text-slate-600">{label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-3xl p-4 space-y-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">Before recording</p>
+                <h4 className="text-lg font-black text-slate-950">Patient read-ahead worksheet</h4>
+                <p className="text-sm text-slate-700 leading-relaxed mt-1">
+                  Print or save a simple PDF so the patient can read target lines ahead of time, or use it on-screen during the diagnostic.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                {readAheadWorksheetSections.slice(0, 3).map(section => (
+                  <div key={section.title} className="rounded-2xl bg-white border border-blue-100 p-3">
+                    <p className="text-xs font-black text-slate-950">{section.title}</p>
+                    <p className="text-xs text-slate-700 mt-1 leading-relaxed whitespace-pre-wrap">{section.body}</p>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className={`${BUTTON_CLASS} w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2`}
+              >
+                <Printer size={16} />
+                Print / Save PDF Worksheet
+              </button>
+              <PrintableHandout
+                title="Speech Read-Ahead Worksheet"
+                studentName={selectedStudentLabel}
+                subtitle="Simple lines to read before or during the guided speech assessment."
+                sections={readAheadWorksheetSections}
+                footerNote="This worksheet supports a clinician-guided speech assessment. It is not a diagnosis or a substitute for SLP judgment."
+              />
+            </div>
+
             <details className="bg-slate-50 border border-slate-200 rounded-3xl p-4">
               <summary className="cursor-pointer text-sm font-black text-slate-900">Customize diagnostic details</summary>
               <div className="mt-4 space-y-4">
@@ -2490,13 +2615,22 @@ export function AssessmentTab() {
             <h2 className="text-xl font-black tracking-tight text-white">{selectedClient?.displayName || 'Student'} · age {activeAssessment.studentAge || '—'}</h2>
             <p className="text-xs text-slate-400 mt-1">{activeAssessment.primaryConcern || 'Speech clarity/intelligibility assessment'}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setActiveAssessmentId('')}
-            className={`${BUTTON_CLASS} bg-slate-900 border border-slate-700 text-slate-300 px-3 text-[10px] uppercase`}
-          >
-            Close
-          </button>
+          <div className="shrink-0 grid gap-2">
+            <button
+              type="button"
+              onClick={goToNextIncomplete}
+              className={`${BUTTON_CLASS} bg-cyan-500 text-slate-950 px-3 text-[10px] uppercase`}
+            >
+              {remainingLineCount > 0 ? 'Next Line' : 'Summary'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAssessmentId('')}
+              className={`${BUTTON_CLASS} bg-slate-900 border border-slate-700 text-slate-300 px-3 text-[10px] uppercase`}
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3">
@@ -2507,6 +2641,20 @@ export function AssessmentTab() {
           <div className="h-2 bg-slate-900 rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500 rounded-full" style={{ width: `${progressPct}%` }} />
           </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2 text-center">
+          {[
+            ['1', 'Say'],
+            ['2', 'Record'],
+            ['3', 'Tap score'],
+            ['4', 'Next']
+          ].map(([number, label]) => (
+            <div key={label} className="rounded-2xl bg-slate-950/70 border border-slate-800 p-2">
+              <span className="block text-sm font-black text-cyan-300">{number}</span>
+              <span className="block text-[10px] font-extrabold uppercase tracking-wide text-slate-400">{label}</span>
+            </div>
+          ))}
         </div>
 
         <div className={`border rounded-2xl p-3 text-left space-y-3 ${
@@ -2790,7 +2938,7 @@ export function AssessmentTab() {
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Patient handout preview</p>
             <h4 className="text-base font-black text-slate-950 mt-1">{selectedClient?.displayName || 'Student'} practice sheet</h4>
             <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-              This creates a plain-language sheet from the assessment. On phones, choose <strong>Print</strong>, then <strong>Save as PDF</strong> if available.
+              This creates a plain-language sheet from the assessment. On phones or desktop, choose <strong>Print</strong>, then <strong>Save as PDF</strong> if available.
             </p>
             <div className="mt-3 grid gap-2">
               {buildPatientHandoutSections(activeAssessment, activeItems, supportPlanDraft).slice(0, 3).map(section => (
@@ -2824,7 +2972,7 @@ export function AssessmentTab() {
               className={`${BUTTON_CLASS} bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2`}
             >
               <Printer size={16} />
-              Print PDF
+              Print / Save PDF
             </button>
             <button
               type="button"
