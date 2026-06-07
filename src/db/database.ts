@@ -41,6 +41,46 @@ export type ListenerConfidence = 'low' | 'medium' | 'high';
 export type AssessmentStatus = 'draft' | 'completed';
 export type AssessmentTemplate = 'adolescent_speech_intelligibility' | 'rhotic_r_diagnostic' | 'connected_speech_participation' | 'school_participation_interview';
 export type AssessmentItemKind = 'checklist' | 'question' | 'student_rating' | 'caregiver_interview' | 'participation' | 'speech_sample' | 'sound_probe' | 'stimulability' | 'listener_check' | 'summary';
+export type AdvancedAnalysisStatus = 'not_requested' | 'running' | 'complete' | 'error';
+
+export interface AssessmentItemAdvancedAnalysis {
+  status: AdvancedAnalysisStatus;
+  apiUrl: string;
+  analyzedAt?: string;
+  error?: string;
+  result?: {
+    job_id: string;
+    status: 'complete' | 'failed';
+    prompt_text: string;
+    filename: string;
+    content_type?: string | null;
+    engine: {
+      name: string;
+      available: boolean;
+      version?: string | null;
+      note?: string | null;
+    };
+    metrics: {
+      duration_seconds: number;
+      sample_rate_hz?: number | null;
+      channels?: number | null;
+      rms_amplitude?: number | null;
+      peak_amplitude?: number | null;
+      zero_crossing_rate?: number | null;
+      mean_intensity_db?: number | null;
+      pitch_mean_hz?: number | null;
+      pitch_min_hz?: number | null;
+      pitch_max_hz?: number | null;
+      voiced_fraction?: number | null;
+      harmonics_to_noise_ratio_db?: number | null;
+      jitter_local?: number | null;
+      shimmer_local?: number | null;
+    } | null;
+    warnings: string[];
+    clinician_summary: string;
+    clinical_notice: string;
+  };
+}
 
 export interface ClientProfile {
   id: string;
@@ -159,6 +199,7 @@ export interface AssessmentItem {
   wordPositions?: string[];
   analysisTags?: string[];
   functionalContext?: string;
+  advancedAnalysis?: AssessmentItemAdvancedAnalysis;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;

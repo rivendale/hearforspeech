@@ -20,6 +20,11 @@ import { TrackerTab } from './tabs/TrackerTab';
 import { ProtocolTab } from './tabs/ProtocolTab';
 import { ExportTab } from './tabs/ExportTab';
 import { detectBuiltInAI, getPlatformInfo, type BuiltInAIStatus } from './utils/builtInAI';
+import {
+  fetchAnalysisCapabilities,
+  getDefaultAnalysisApiUrl,
+  type AnalysisCapabilities
+} from './utils/advancedAnalysis';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -138,6 +143,10 @@ export default function App() {
   });
   const [showCalibrationModal, setShowCalibrationModal] = useState(false);
   const [aiCapability, setAiCapability] = useState<BuiltInAIStatus | null>(null);
+  const [analysisApiUrl] = useState(getDefaultAnalysisApiUrl);
+  const [analysisCapabilities, setAnalysisCapabilities] = useState<AnalysisCapabilities | null>(null);
+  const [analysisApiError, setAnalysisApiError] = useState('');
+  const [analysisApiChecking, setAnalysisApiChecking] = useState(true);
   const [isIOS] = useState(() => {
     if (typeof navigator === 'undefined') return false;
     const userAgent = navigator.userAgent || navigator.vendor || (window as Window & { opera?: string }).opera || '';
@@ -574,6 +583,34 @@ export default function App() {
     };
   }, [setHasLocalAI, setAiStatus]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkAnalysisApi = async () => {
+      setAnalysisApiChecking(true);
+      try {
+        const capabilities = await fetchAnalysisCapabilities(analysisApiUrl);
+        if (!isMounted) return;
+        setAnalysisCapabilities(capabilities);
+        setAnalysisApiError('');
+      } catch (error) {
+        if (!isMounted) return;
+        setAnalysisCapabilities(null);
+        setAnalysisApiError(error instanceof Error ? error.message : 'Analysis API is unavailable.');
+      } finally {
+        if (isMounted) setAnalysisApiChecking(false);
+      }
+    };
+
+    checkAnalysisApi();
+    const intervalId = window.setInterval(checkAnalysisApi, 5 * 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [analysisApiUrl]);
+
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -583,6 +620,10 @@ export default function App() {
     }
     setDeferredPrompt(null);
   };
+
+  const parselmouthEngine = analysisCapabilities?.engines.find(engine => engine.name === 'parselmouth');
+  const isAnalysisApiReady = Boolean(analysisCapabilities && parselmouthEngine?.available);
+  const analysisBadgeLabel = isAnalysisApiReady ? 'Analysis Ready' : analysisApiChecking ? 'Checking API' : 'Guided Tools';
 
   if (isLocked) {
     return (
@@ -717,13 +758,15 @@ export default function App() {
         <button
           onClick={() => setShowCalibrationModal(true)}
           className={`flex items-center gap-1.5 border px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all duration-300 min-h-[32px] ${
-            hasLocalAI 
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' 
-              : 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20'
+            isAnalysisApiReady
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+              : analysisApiChecking
+                ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/20'
+                : 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20'
           }`}
         >
-          <Cpu size={12} className={hasLocalAI ? "" : "animate-pulse"} />
-          <span>{hasLocalAI ? "AI Active" : "Guided Tools"}</span>
+          <Cpu size={12} className={isAnalysisApiReady ? "" : "animate-pulse"} />
+          <span>{analysisBadgeLabel}</span>
         </button>
       </header>
 
@@ -861,7 +904,7 @@ export default function App() {
             <div className="flex justify-between items-start border-b border-slate-700 pb-3">
               <div className="flex items-center gap-2">
                 <Brain className="text-indigo-400" size={20} />
-                <h3 className="font-extrabold text-base text-slate-100 tracking-tight">Local Capability Status</h3>
+                <h3 className="font-extrabold text-base text-slate-100 tracking-tight">Analysis Readiness</h3>
               </div>
               <button 
                 onClick={() => setShowCalibrationModal(false)}
@@ -873,15 +916,42 @@ export default function App() {
 
             {/* Diagnostic items */}
             <div className="space-y-3">
+              <CalibrationItem
+                label="HearForSpeech API"
+                status={isAnalysisApiReady}
+                desc={isAnalysisApiReady
+                  ? `${analysisCapabilities?.service || 'Analysis API'} ${analysisCapabilities?.version || ''} is reachable at ${analysisApiUrl}.`
+                  : analysisApiChecking
+                    ? `Checking ${analysisApiUrl}...`
+                    : analysisApiError || `Could not reach ${analysisApiUrl}. Guided checklists still work.`
+                }
+              />
+              <CalibrationItem
+                label="Acoustic Metrics"
+                status={Boolean(parselmouthEngine?.available)}
+                desc={parselmouthEngine?.available
+                  ? `Parselmouth is available${parselmouthEngine.version ? ` (${parselmouthEngine.version})` : ''} for recorded speech metrics.`
+                  : 'Parselmouth metrics are unavailable; the app will keep recording/checklist data local.'
+                }
+              />
               <CalibrationItem label="Browser Engine Check" status={getPlatformInfo().isChromium} desc={getPlatformInfo().isChromium ? "Chromium-based browser detected." : "Non-Chromium browser detected; guided workflows still work."} />
-              <CalibrationItem label="WebGPU Capabilities" status={true} desc="Hardware acceleration available." />
-              <CalibrationItem label="Built-in AI API Status" status={hasLocalAI} desc={aiCapability?.message || "Detecting browser built-in AI support..."} />
+              <CalibrationItem label="Built-in AI API Status" status={hasLocalAI} desc={aiCapability?.message || "Optional browser built-in AI detection is separate from the HearForSpeech API."} />
+            </div>
+
+            <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl text-[11px] text-emerald-50 space-y-2 leading-relaxed font-normal text-left">
+              <span className="font-bold block uppercase tracking-wider">Automatic assessment analysis</span>
+              <p>
+                The guided assessment can send newly recorded assessment lines to <span className="font-mono text-[10px]">{analysisApiUrl}</span> in the background when recording consent is confirmed and auto-analysis is enabled.
+              </p>
+              <p className="text-emerald-100/80">
+                Results are objective acoustic descriptors for clinician review. They do not diagnose, determine eligibility, or replace SLP judgment.
+              </p>
             </div>
 
             {/* Explainer */}
             {!hasLocalAI && (
               <div className="bg-slate-900 border border-slate-750 p-4 rounded-2xl text-[11px] text-slate-450 space-y-2 leading-relaxed font-normal text-left">
-                <span className="font-bold text-slate-350 block uppercase">{aiCapability?.setupTitle || 'Built-in AI Support'}</span>
+                <span className="font-bold text-slate-350 block uppercase">{aiCapability?.setupTitle || 'Optional Browser AI'}</span>
                 <p>{aiCapability?.message || 'The app is checking whether browser built-in AI is available.'}</p>
                 <ol className="list-decimal list-inside space-y-1.5 pt-1">
                   {(aiCapability?.setupSteps || []).map((step) => (
@@ -917,7 +987,7 @@ export default function App() {
                   </div>
                 )}
                 <p className="text-[10px] text-slate-500 italic">
-                  No cloud AI is required. Assessment Coach, recordings, checklists, notes, and exports continue to work local-first.
+                  Browser AI is optional. The production acoustic-analysis path uses the HearForSpeech API only after recording consent is confirmed.
                 </p>
               </div>
             )}

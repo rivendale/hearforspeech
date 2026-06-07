@@ -5,6 +5,15 @@ export interface AdvancedAnalysisEngine {
   note?: string | null;
 }
 
+export interface AnalysisCapabilities {
+  service: string;
+  version: string;
+  default_retention: string;
+  engines: AdvancedAnalysisEngine[];
+  endpoints: string[];
+  clinical_notice: string;
+}
+
 export interface AdvancedAnalysisMetrics {
   duration_seconds: number;
   sample_rate_hz?: number | null;
@@ -35,17 +44,63 @@ export interface AdvancedAnalysisResult {
   clinical_notice: string;
 }
 
+export const PUBLIC_ANALYSIS_API_URL = 'https://api.hearforspeech.com';
+
 const trimTrailingSlash = (url: string) => url.replace(/\/+$/, '');
 
+const isLocalUrl = (url: string) => {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(hostname);
+  } catch {
+    return false;
+  }
+};
+
 export const getDefaultAnalysisApiUrl = () => (
-  (import.meta.env.VITE_HFS_ANALYSIS_API_URL as string | undefined)?.trim() ||
-  localStorage.getItem('hfs_analysis_api_url') ||
-  'https://api.hearforspeech.com'
+  (() => {
+    const envUrl = (import.meta.env.VITE_HFS_ANALYSIS_API_URL as string | undefined)?.trim();
+    const storedUrl = localStorage.getItem('hfs_analysis_api_url')?.trim();
+    const candidate = envUrl || storedUrl || PUBLIC_ANALYSIS_API_URL;
+
+    if (!import.meta.env.DEV && isLocalUrl(candidate)) {
+      localStorage.removeItem('hfs_analysis_api_url');
+      return PUBLIC_ANALYSIS_API_URL;
+    }
+
+    return candidate;
+  })()
 );
 
 export const getAnalysisApiKey = () => (
   (import.meta.env.VITE_HFS_ANALYSIS_API_KEY as string | undefined)?.trim() || ''
 );
+
+export async function fetchAnalysisCapabilities(apiUrl = getDefaultAnalysisApiUrl()): Promise<AnalysisCapabilities> {
+  const response = await fetch(`${trimTrailingSlash(apiUrl)}/v1/capabilities`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Analysis API status check failed (${response.status}).`);
+  }
+
+  return response.json() as Promise<AnalysisCapabilities>;
+}
+
+export async function fetchAnalysisHealth(apiUrl = getDefaultAnalysisApiUrl()): Promise<{ status: string; service: string; version: string }> {
+  const response = await fetch(`${trimTrailingSlash(apiUrl)}/health`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Analysis API health check failed (${response.status}).`);
+  }
+
+  return response.json() as Promise<{ status: string; service: string; version: string }>;
+}
 
 export async function submitAdvancedAnalysis({
   apiUrl,
