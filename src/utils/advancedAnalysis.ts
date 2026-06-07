@@ -61,6 +61,40 @@ export interface AdvancedAnalysisResult {
   clinical_notice: string;
 }
 
+export interface SpeechSoundCandidate {
+  target: string;
+  expected?: string | null;
+  observed?: string | null;
+  error_type:
+    | 'possible_substitution'
+    | 'possible_omission'
+    | 'possible_distortion'
+    | 'possible_cluster_reduction'
+    | 'possible_rate_or_intelligibility'
+    | 'needs_review';
+  confidence: 'low' | 'medium' | 'high';
+  evidence: string[];
+  start_seconds?: number | null;
+  end_seconds?: number | null;
+  review_prompt: string;
+}
+
+export interface SpeechSoundAnalysisResult {
+  job_id: string;
+  request_id?: string | null;
+  status: 'complete' | 'failed';
+  prompt_text: string;
+  filename: string;
+  content_type?: string | null;
+  engines: AdvancedAnalysisEngine[];
+  metrics: AdvancedAnalysisMetrics | null;
+  possible_errors: SpeechSoundCandidate[];
+  review_facts: AnalysisReviewFact[];
+  warnings: string[];
+  clinician_summary: string;
+  clinical_notice: string;
+}
+
 export interface AssessmentSessionAnalysisItemInput {
   id: string;
   prompt: string;
@@ -197,6 +231,49 @@ export async function submitAdvancedAnalysis({
   return response.json() as Promise<AdvancedAnalysisResult>;
 }
 
+export async function submitSpeechSoundPatternAnalysis({
+  apiUrl,
+  apiKey,
+  audio,
+  filename,
+  promptText
+}: {
+  apiUrl: string;
+  apiKey?: string;
+  audio: Blob;
+  filename: string;
+  promptText: string;
+}): Promise<SpeechSoundAnalysisResult> {
+  const endpoint = `${trimTrailingSlash(apiUrl)}/v1/analysis/speech-sound-patterns`;
+  const formData = new FormData();
+  formData.append('file', audio, filename);
+  formData.append('prompt_text', promptText);
+  formData.append('consent_confirmed', 'true');
+  formData.append('retention_policy', 'temporary');
+
+  const headers: HeadersInit = {};
+  if (apiKey) headers['X-HFS-API-Key'] = apiKey;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+
+  if (!response.ok) {
+    let message = `Speech-sound analysis failed (${response.status}).`;
+    try {
+      const error = await response.json();
+      if (error?.detail) message = error.detail;
+    } catch {
+      // Keep default message.
+    }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<SpeechSoundAnalysisResult>;
+}
+
 export async function submitAssessmentSessionAnalysis({
   apiUrl,
   apiKey,
@@ -268,6 +345,27 @@ export const formatAdvancedAnalysisForNotes = (result: AdvancedAnalysisResult) =
     `HNR: ${formatNumber(metrics.harmonics_to_noise_ratio_db, 1)} dB`,
     `Jitter local: ${formatNumber(metrics.jitter_local, 4)}`,
     `Shimmer local: ${formatNumber(metrics.shimmer_local, 4)}`,
+    result.warnings.length ? `Warnings: ${result.warnings.join('; ')}` : '',
+    result.clinical_notice
+  ];
+
+  return lines.filter(Boolean).join('\n');
+};
+
+export const formatSpeechSoundAnalysisForNotes = (result: SpeechSoundAnalysisResult) => {
+  const metrics = result.metrics;
+  const candidates = result.possible_errors.length
+    ? result.possible_errors.map(candidate => (
+      `${candidate.target}: ${candidate.error_type.replaceAll('_', ' ')} (${candidate.confidence}); ${candidate.review_prompt}`
+    ))
+    : ['No possible speech-sound error candidates were returned.'];
+
+  const lines = [
+    `Speech-sound analysis: ${result.clinician_summary}`,
+    metrics ? `Duration: ${formatNumber(metrics.duration_seconds)} sec` : '',
+    metrics?.pitch_mean_hz ? `Mean pitch: ${formatNumber(metrics.pitch_mean_hz, 1)} Hz` : '',
+    metrics?.mean_intensity_db ? `Mean intensity: ${formatNumber(metrics.mean_intensity_db, 1)} dB` : '',
+    `Possible error candidates for SLP review:\n${candidates.join('\n')}`,
     result.warnings.length ? `Warnings: ${result.warnings.join('; ')}` : '',
     result.clinical_notice
   ];

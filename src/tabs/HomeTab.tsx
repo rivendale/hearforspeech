@@ -22,13 +22,29 @@ import {
 import { useStore, type AppTab } from '../store/useStore';
 import { encryptRecording } from '../utils/crypto';
 import { PrintableHandout, type HandoutSection } from '../components/PrintableHandout';
+import {
+  formatSpeechSoundAnalysisForNotes,
+  getAnalysisApiKey,
+  getDefaultAnalysisApiUrl,
+  submitSpeechSoundPatternAnalysis,
+  type SpeechSoundAnalysisResult
+} from '../utils/advancedAnalysis';
 
 const ASSESSMENT_INTENT_KEY = 'hfs_assessment_start_intent';
 const FOCUS_CLASS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500';
 const BIG_BUTTON = `min-h-[56px] rounded-3xl font-black transition active:scale-98 ${FOCUS_CLASS}`;
 type IconComponent = ComponentType<{ size?: number; className?: string }>;
+type QuickAnalysisStatus = 'idle' | 'running' | 'complete' | 'error';
 
 const TEEN_READING_PASSAGE = 'The quiet library was full of students working on science projects. Jordan explained the results clearly, then answered questions from the group.';
+const SOUND_INVENTORY_WORDS = {
+  initial: '/p/ pie, /b/ boy, /t/ tie, /d/ day, /k/ key, /g/ go, /m/ me, /n/ no, /f/ fan, /v/ van, /θ/ thin, /ð/ this, /s/ sun, /z/ zoo, /ʃ/ shoe, /h/ hat, /tʃ/ chair, /dʒ/ jump, /l/ light, /r/ red, /w/ we, /j/ yes',
+  medial: '/p/ apple, /b/ rabbit, /t/ butter, /d/ ladder, /k/ soccer, /g/ tiger, /m/ hammer, /n/ pony, /ŋ/ singing, /f/ dolphin, /v/ seven, /θ/ birthday, /ð/ mother, /s/ pencil, /z/ busy, /ʃ/ fishing, /ʒ/ measure, /tʃ/ teacher, /dʒ/ magic, /l/ yellow, /r/ carrot, /w/ away, /j/ canyon',
+  final: '/p/ cup, /b/ tub, /t/ cat, /d/ bed, /k/ book, /g/ dog, /m/ home, /n/ moon, /ŋ/ ring, /f/ leaf, /v/ five, /θ/ teeth, /ð/ bathe, /s/ bus, /z/ buzz, /ʃ/ fish, /ʒ/ garage, /tʃ/ watch, /dʒ/ bridge, /l/ ball, /r/ car',
+  vowels: '/i/ beet, /ɪ/ bit, /eɪ/ bait/day, /ɛ/ bet, /æ/ bat, /ɑ/ hot, /ɔ/ caught, /oʊ/ boat/go, /ʊ/ book, /u/ boot, /ʌ/ cup, /ə/ sofa, /aɪ/ bite, /aʊ/ cow, /ɔɪ/ boy',
+  clusters: 'spoon, star, skate, smile, snake, swim, slide, prize, break, tree, drive, crown, green, frog, play, blue, clean, glue, fly, sleep, queen, twelve, dwell, best, hand, milk, left, jump, asked, desks, texts, lamps',
+  multisyllabic: 'computer, cafeteria, responsibility, university, electricity, conversation, organization, impossible, particularly, environmental'
+};
 
 const SPEECH_OBSERVATION_OPTIONS = [
   'Sound distortion',
@@ -45,26 +61,76 @@ const SPEECH_OBSERVATION_OPTIONS = [
   'Better with model'
 ];
 
-const teenDiagnosticSections: HandoutSection[] = [
+const teenSoundInventorySections: HandoutSection[] = [
   {
-    title: 'Patient Reading Page',
+    title: 'Patient Read-Aloud Page',
     body: [
-      'Read this in your regular speaking voice.',
+      'Read in your regular speaking voice. It is okay to pause or try again.',
       TEEN_READING_PASSAGE,
-      'Then say: red, rain, ring, car, star, bird, teacher, around, green, practice.',
-      'Then explain how to play or do something you know well.'
+      'Then explain how to play or do something you know well.',
+      'Then say each word list the SLP selects below.'
+    ].join('\n')
+  },
+  {
+    title: 'Consonants by Word Position',
+    body: [
+      `Initial: ${SOUND_INVENTORY_WORDS.initial}`,
+      `Medial: ${SOUND_INVENTORY_WORDS.medial}`,
+      `Final: ${SOUND_INVENTORY_WORDS.final}`
+    ].join('\n')
+  },
+  {
+    title: 'Vowels, Clusters, and Longer Words',
+    body: [
+      `Vowels/diphthongs: ${SOUND_INVENTORY_WORDS.vowels}`,
+      `Clusters: ${SOUND_INVENTORY_WORDS.clusters}`,
+      `Multisyllabic words: ${SOUND_INVENTORY_WORDS.multisyllabic}`
+    ].join('\n')
+  },
+  {
+    title: 'Residual Targets to Watch Closely',
+    body: [
+      '/r/: prevocalic, vocalic, blends, distorted /r/',
+      '/s, z/: frontal or lateral lisp, voicing contrast',
+      '/ʃ, tʃ, dʒ/: distortion or substitution',
+      '/θ, ð/: substitutions such as /f/, /d/, or /t/',
+      'Clusters: reduction, distortion, sequencing difficulty',
+      'Multisyllabic words: omissions, stress errors, sequencing errors'
     ].join('\n')
   },
   {
     title: 'SLP Listening Checklist',
     body: [
       '□ Overall intelligibility: clear / partly clear / hard to understand',
-      '□ Sound errors: distortion / substitution / omission / inconsistent',
-      '□ Word positions: initial / medial / final / blends / vocalic',
+      '□ Consonant inventory present across initial / medial / final positions',
+      '□ Vowels and diphthongs: typical / monitor / concern',
+      '□ Clusters: accurate / reduced / distorted / sequencing difficulty',
+      '□ Multisyllabic words: accurate / omissions / stress errors / sequencing errors',
       '□ Connected speech: clear in reading / breaks down in explanation / rate affects clarity',
       '□ Cueing response: independent / minimal / moderate / maximal',
-      '□ Listener check needed: yes / no',
       '□ Consider formal articulation/intelligibility measure if concerns persist.'
+    ].join('\n')
+  },
+  {
+    title: 'Error Pattern Form',
+    body: [
+      'Consonants absent or distorted: sound / position / error type / example',
+      '____________________________________________________________',
+      'Patterns observed: final consonant deletion / cluster reduction / fronting / stopping / gliding / vocalization / deaffrication / syllable deletion / /r/ distortion / lateral or frontal lisp',
+      '____________________________________________________________',
+      'Intelligibility estimate: familiar context ________% / unfamiliar context ________%',
+      'What helped most?',
+      '____________________________________________________________'
+    ].join('\n')
+  },
+  {
+    title: 'Report Language Starter',
+    body: [
+      'Speech sound inventory was assessed across single words, sentences, reading, and connected speech.',
+      'Productions were evaluated across initial, medial, and final word positions, including consonant clusters and multisyllabic words.',
+      'Residual errors were noted on ________, characterized by ________.',
+      'Intelligibility was judged to be approximately ________% in known contexts and ________% in unfamiliar contexts.',
+      'The SLP should interpret these observations with hearing/listening access, language/dialect background, participation impact, and any required formal measures.'
     ].join('\n')
   },
   {
@@ -126,6 +192,11 @@ export function HomeTab() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [lastRecordingId, setLastRecordingId] = useState<number | null>(null);
+  const [lastRecordingBlob, setLastRecordingBlob] = useState<Blob | null>(null);
+  const [lastRecordingName, setLastRecordingName] = useState('');
+  const [quickAnalysisStatus, setQuickAnalysisStatus] = useState<QuickAnalysisStatus>('idle');
+  const [quickAnalysisResult, setQuickAnalysisResult] = useState<SpeechSoundAnalysisResult | null>(null);
+  const [quickAnalysisError, setQuickAnalysisError] = useState('');
   const [quickStatus, setQuickStatus] = useState('');
   const [speechObservationTags, setSpeechObservationTags] = useState<string[]>([]);
   const [quickNote, setQuickNote] = useState('');
@@ -255,7 +326,12 @@ export function HomeTab() {
         const finalRecording = masterKey ? await encryptRecording(recording, masterKey) : recording;
         const recordingId = await db.recordings.add(finalRecording);
         setLastRecordingId(recordingId as number);
-        setQuickStatus(`Saved recording for ${client.displayName}. Now mark what you hear.`);
+        setLastRecordingBlob(blob);
+        setLastRecordingName(recording.name);
+        setQuickAnalysisStatus('idle');
+        setQuickAnalysisResult(null);
+        setQuickAnalysisError('');
+        setQuickStatus(`Saved recording for ${client.displayName}. Tap Analyze for a speech review.`);
         stream.getTracks().forEach(track => track.stop());
         streamRef.current = null;
         mediaRecorderRef.current = null;
@@ -289,13 +365,52 @@ export function HomeTab() {
 
   const buildQuickReviewNote = () => {
     const patientLabel = selectedClient?.displayName || newPatientName.trim() || 'Patient';
+    const analysisText = quickAnalysisResult
+      ? `\nSpeech-sound candidates for SLP review:\n${formatSpeechSoundAnalysisForNotes(quickAnalysisResult)}`
+      : '';
     return [
       `Quick speech check for ${patientLabel}.`,
       lastRecordingId ? `Recording saved locally: #${lastRecordingId}.` : 'No recording saved yet.',
+      quickAnalysisStatus === 'complete' ? 'Analyzer status: complete; SLP review required.' : `Analyzer status: ${quickAnalysisStatus}.`,
       `SLP-marked observations: ${speechObservationTags.length ? speechObservationTags.join(', ') : 'none selected yet'}.`,
       quickNote.trim() ? `Notes: ${quickNote.trim()}` : 'Notes: none entered yet.',
-      'Consider using the printable 14-year-old intelligibility diagnostic or a formal measure if concerns persist.'
+      'Consider using the printable 14-year-old full sound inventory or a formal measure if concerns persist.',
+      analysisText
     ].join('\n');
+  };
+
+  const analyzeQuickRecording = async () => {
+    if (!lastRecordingBlob) {
+      setQuickStatus('Record speech first, then tap Analyze.');
+      return;
+    }
+
+    setQuickAnalysisStatus('running');
+    setQuickAnalysisError('');
+    setQuickStatus('Analyzing speech sample...');
+
+    try {
+      const result = await submitSpeechSoundPatternAnalysis({
+        apiUrl: getDefaultAnalysisApiUrl(),
+        apiKey: getAnalysisApiKey(),
+        audio: lastRecordingBlob,
+        filename: lastRecordingName || 'quick-speech-sample.webm',
+        promptText: [
+          TEEN_READING_PASSAGE,
+          'Explain how to play or do something you know well.',
+          'Say red, rabbit, ring, car, star, bird, sun, zoo, shoe, chair, jump, thin, this, street, tree.',
+          'SLP goal: identify possible speech-sound errors, substitutions, omissions, distortions, cluster reduction, rate, intelligibility, and whether a full sound inventory is needed.'
+        ].join('\n')
+      });
+      setQuickAnalysisResult(result);
+      setQuickAnalysisStatus('complete');
+      setQuickStatus('Analysis ready. Review with SLP judgment.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Analysis failed.';
+      setQuickAnalysisError(message);
+      setQuickAnalysisStatus('error');
+      setQuickStatus(message);
+    }
   };
 
   const saveQuickReview = async () => {
@@ -338,10 +453,10 @@ export function HomeTab() {
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-700">Start here</p>
             <h2 className="mt-1 text-3xl sm:text-4xl font-black tracking-tight text-slate-950 leading-tight">
-              Pick patient. Record speech. Mark what you hear.
+              Record. Stop. Analyze.
             </h2>
             <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-700">
-              No setup maze. Use this when the SLP just needs a speech sample, a quick observation note, and the next diagnostic step.
+              No setup maze. Select a patient, record speech, run analysis, then confirm what the SLP hears.
             </p>
           </div>
 
@@ -413,13 +528,87 @@ export function HomeTab() {
             <p className="text-xs font-semibold text-slate-700" role="status">{quickStatus || 'Recording saves locally on this device.'}</p>
           </div>
 
+          <div className="rounded-[1.75rem] border border-blue-100 bg-blue-50 p-4 shadow-sm space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-black text-white">3</span>
+              <h3 className="text-lg font-black text-slate-950">Analyze speech</h3>
+            </div>
+            <button
+              type="button"
+              onClick={analyzeQuickRecording}
+              disabled={!lastRecordingBlob || quickAnalysisStatus === 'running'}
+              className={`${BIG_BUTTON} w-full min-h-[82px] text-xl shadow-lg ${
+                !lastRecordingBlob || quickAnalysisStatus === 'running'
+                  ? 'bg-slate-200 text-slate-500'
+                  : 'bg-blue-600 text-white shadow-blue-100'
+              }`}
+            >
+              {quickAnalysisStatus === 'running' ? 'Analyzing...' : 'Analyze'}
+            </button>
+            <p className="text-xs font-semibold leading-relaxed text-slate-700">
+              Analysis temporarily uploads this recording to the configured HearForSpeech API for acoustic review. Sound-error calls remain SLP-reviewed.
+            </p>
+            {quickAnalysisStatus === 'complete' && quickAnalysisResult && (
+              <div className="rounded-2xl border border-blue-200 bg-white p-3">
+                <p className="text-[10px] font-black uppercase tracking-wider text-blue-700">Analysis ready</p>
+                <p className="mt-1 text-sm font-black text-slate-950">{quickAnalysisResult.clinician_summary}</p>
+                {quickAnalysisResult.possible_errors.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {quickAnalysisResult.possible_errors.slice(0, 6).map(candidate => (
+                      <div
+                        key={`${candidate.target}-${candidate.error_type}-${candidate.review_prompt}`}
+                        className="rounded-2xl border border-amber-200 bg-amber-50 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-black text-slate-950">{candidate.target}</span>
+                          <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
+                            {candidate.confidence}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs font-black uppercase tracking-wide text-amber-800">
+                          {candidate.error_type.replaceAll('_', ' ')}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-700">
+                          {candidate.review_prompt}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <AnalysisMetric label="Duration" value={`${quickAnalysisResult.metrics?.duration_seconds?.toFixed(1) || '—'} sec`} />
+                  <AnalysisMetric label="Pitch mean" value={`${quickAnalysisResult.metrics?.pitch_mean_hz?.toFixed(0) || '—'} Hz`} />
+                  <AnalysisMetric label="Intensity" value={`${quickAnalysisResult.metrics?.mean_intensity_db?.toFixed(1) || '—'} dB`} />
+                  <AnalysisMetric label="Voiced" value={quickAnalysisResult.metrics?.voiced_fraction?.toFixed(2) || '—'} />
+                </div>
+                {quickAnalysisResult.review_facts?.length ? (
+                  <div className="mt-3 space-y-1">
+                    {quickAnalysisResult.review_facts.slice(0, 4).map(fact => (
+                      <p key={`${fact.label}-${fact.value}`} className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-slate-800">
+                        {fact.label}: {fact.value}{fact.unit ? ` ${fact.unit}` : ''}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+                <p className="mt-3 text-xs font-semibold leading-relaxed text-slate-600">
+                  Next: tap any speech sounds the SLP hears as distorted, substituted, omitted, or unclear.
+                </p>
+              </div>
+            )}
+            {quickAnalysisStatus === 'error' && (
+              <div className="rounded-2xl border border-rose-200 bg-white p-3 text-sm font-semibold text-rose-800">
+                {quickAnalysisError}
+              </div>
+            )}
+          </div>
+
           <div className="rounded-[1.75rem] border border-amber-100 bg-amber-50 p-4 shadow-sm space-y-3">
             <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-black text-white">3</span>
-              <h3 className="text-lg font-black text-slate-950">Mark what you hear</h3>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-black text-white">4</span>
+              <h3 className="text-lg font-black text-slate-950">Confirm errors heard</h3>
             </div>
             <p className="text-xs font-semibold leading-relaxed text-slate-700">
-              This is intentionally SLP-confirmed. Automatic speech-sound error detection is not treated as a diagnosis.
+              The app can support review, but the SLP confirms speech-sound errors before documentation.
             </p>
             <div className="grid grid-cols-2 gap-2">
               {SPEECH_OBSERVATION_OPTIONS.map(tag => {
@@ -473,9 +662,9 @@ export function HomeTab() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">Separate printable diagnostic</p>
-            <h3 className="text-xl font-black text-slate-950">14-year-old intelligibility starter</h3>
+            <h3 className="text-xl font-black text-slate-950">14-year-old full sound inventory</h3>
             <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-700">
-              Print one page with exactly what to read plus an SLP checklist for sound errors, intelligibility, cueing, and next steps.
+              Print a complete word-position, vowel, cluster, multisyllabic, connected-speech, and SLP checklist packet.
             </p>
           </div>
           <FileText className="text-indigo-600 shrink-0" size={24} />
@@ -487,14 +676,14 @@ export function HomeTab() {
             className={`${BIG_BUTTON} bg-indigo-600 text-white`}
           >
             <Printer className="inline-block mr-1" size={18} />
-            Print Diagnostic
+            Print Inventory
           </button>
           <button
             type="button"
-            onClick={() => startAssessment({ phase: 'new_student', presetId: 'teen_full' })}
+            onClick={() => startAssessment({ phase: 'new_student', presetId: 'teen_sound_inventory' })}
             className={`${BIG_BUTTON} bg-indigo-50 border border-indigo-100 text-indigo-900`}
           >
-            Record Full Diagnostic
+            Record Inventory
           </button>
         </div>
         <div className="mt-3 rounded-2xl bg-indigo-50 border border-indigo-100 p-3">
@@ -502,10 +691,10 @@ export function HomeTab() {
           <p className="mt-1 text-sm font-bold leading-relaxed text-slate-950">{TEEN_READING_PASSAGE}</p>
         </div>
         <PrintableHandout
-          title="14-Year-Old Speech Intelligibility Starter"
+          title="14-Year-Old Full Sound Inventory"
           studentName={selectedClient?.displayName || newPatientName.trim() || 'Student'}
-          subtitle="Read-aloud prompts and SLP checklist for a first speech clarity screen."
-          sections={teenDiagnosticSections}
+          subtitle="Full sound inventory read-aloud prompts and SLP checklist for adolescent speech clarity."
+          sections={teenSoundInventorySections}
           footerNote="This printable supports SLP judgment. It does not diagnose or replace formal assessment when needed."
         />
       </section>
@@ -615,5 +804,14 @@ function TimelineRow({
       </span>
       <span className="rounded-2xl bg-sky-100 px-3 py-2 text-xs font-black text-sky-800">{action}</span>
     </button>
+  );
+}
+
+function AnalysisMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-blue-50 p-2">
+      <span className="block text-[10px] font-black uppercase tracking-wide text-blue-700">{label}</span>
+      <span className="mt-1 block text-sm font-black text-slate-950">{value}</span>
+    </div>
   );
 }

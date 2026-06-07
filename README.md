@@ -1,10 +1,10 @@
 # Hear for Speech
 
-Hear for Speech is a local-first, offline-capable Progressive Web App (PWA) for Speech-Language Pathologists (SLPs), students, and caregivers. The app now opens with the simplest clinical path first: select a patient, record a speech sample, mark what the SLP hears, and print or launch a diagnostic starter when needed.
+Hear for Speech is a local-first, offline-capable Progressive Web App (PWA) for Speech-Language Pathologists (SLPs), students, and caregivers. The app now opens with the simplest clinical path first: select a patient, record a speech sample, run analysis, confirm speech-sound observations, and print or launch a diagnostic inventory when needed.
 
 The quick-use workflow is:
 
-**Patient → Record speech → Mark what you hear → Save note → Print starter diagnostic**
+**Patient → Record → Stop → Analyze → Confirm errors heard → Save note**
 
 The fuller therapy workflow remains available:
 
@@ -34,24 +34,28 @@ The app opens to a no-doc **Home** screen built for a phone in the therapy room:
 1. Select an existing patient or type a new patient name.
 2. Ask the patient to read the short starter passage shown on screen.
 3. Tap the large **Start Recording** button, then **Stop Recording**.
-4. Tap the speech observations the SLP hears, such as sound distortion, omission, reduced intelligibility, fast rate, low volume, or “better with model.”
-5. Add an optional quick note.
-6. Tap **Copy Note** or **Save Note**.
-7. If a diagnostic is needed, print the **14-year-old intelligibility starter** or open the longer diagnostic portal.
+4. Tap **Analyze**.
+5. Review the analysis facts and any warnings.
+6. Tap the speech observations the SLP confirms, such as sound distortion, substitution, omission, reduced intelligibility, fast rate, low volume, or “better with model.”
+7. Add an optional quick note.
+8. Tap **Copy Note** or **Save Note**.
+9. If a diagnostic is needed, print the **14-year-old full sound inventory** or open the guided inventory recorder.
 
-This front door is intentionally SLP-controlled. The app helps organize recordings, prompts, checklists, and notes; it does not automatically diagnose speech errors or replace clinical judgment.
+This front door is intentionally SLP-controlled. The app helps organize recordings, prompts, acoustic analysis facts, checklists, and notes; it does not automatically diagnose speech errors, determine eligibility, or replace clinical judgment.
 Quick speech checks save as unscored local notes so they do not create misleading PCC or accuracy trends.
 
-### 14-Year-Old Intelligibility Starter
+### 14-Year-Old Full Sound Inventory
 
-Home includes a printable starter page for an adolescent speech clarity screen. It gives:
+Home includes a printable full sound inventory for an adolescent speech clarity screen. It gives:
 
-- A patient-facing reading passage and word list
+- A patient-facing reading passage and connected-speech prompt
+- Initial, medial, and final consonant word lists
+- Vowels, diphthongs, clusters, final clusters, endings, and multisyllabic words
 - A connected-speech prompt
 - An SLP listening checklist for sound errors, intelligibility, cueing response, and next steps
 - Blank note lines for what was hard, what helped, and what to do next
 
-Use the starter when the SLP needs a quick first sample before deciding whether to continue with a full articulation/intelligibility diagnostic, /r/ deep dive, connected-speech sample, listener check, or formal measure.
+Use the inventory when the SLP needs a structured way to check speech sounds across positions before deciding whether to continue with a formal measure, /r/ deep dive, connected-speech sample, or listener check.
 
 ### Start Session
 1. Open the app to the **Session** tab.
@@ -143,7 +147,7 @@ The new diagnostic launcher adds local-only checklist lenses inspired by common 
 - Student, caregiver, teacher, and Listener Check impact ratings
 - Conservative “Consider...” follow-up flags for formal measures, referrals, or deeper probes
 
-These are prompts and documentation aids, not automated diagnoses. Open-source tools such as forced aligners, phoneme recognizers, or acoustic-analysis libraries may be useful future research paths, but many require native Python/server/WASM work and are not added to the browser app unless they can remain local-first, practical, and clinician-controlled.
+These are prompts and documentation aids, not automated diagnoses. The optional HearForSpeech API can now return conservative possible speech-sound pattern candidates for SLP review when a clinician chooses to analyze a recording.
 
 ### Printable Diagnostic Packets
 
@@ -210,9 +214,11 @@ VITE_HFS_ANALYSIS_API_URL=https://api.hearforspeech.com
 VITE_HFS_ANALYSIS_API_KEY=
 ```
 
+When the SLP taps **Analyze** on Home, the app sends the latest recording to `POST /v1/analysis/speech-sound-patterns` for temporary processing. The response can include acoustic metrics, expected prompt targets, and possible speech-sound error candidates such as possible distortion, omission, substitution, cluster reduction, or recording-quality/intelligibility flags.
+
 When an assessment has recording consent confirmed and **Auto analyze recordings** is on, newly recorded assessment lines upload in the background for temporary processing. The line card changes to **Analysis ready** when metrics return, and the SLP can choose whether to insert those metrics into editable notes. The assessment header also includes **Analyze all recordings**, which uses the batch assessment endpoint when the backend has been deployed with `POST /v1/analysis/assessment-session`.
 
-The backend uses temporary processing and returns supporting acoustic descriptors. It does not diagnose, determine eligibility, or replace SLP interpretation. If the backend is offline, the guided assessment, recordings, checklist scoring, drafts, printing, and exports still work from local browser storage.
+The backend uses temporary processing and returns supporting acoustic descriptors and conservative review candidates. It does not diagnose, determine eligibility, or replace SLP interpretation. If the backend is offline, the guided assessment, recordings, checklist scoring, drafts, printing, and exports still work from local browser storage.
 
 The generated assessment summary is editable and conservative. It summarizes checklist entries, recordings, sound probes by sound/word position, cueing/stimulability, functional participation contexts, and “Consider...” follow-up flags. The SLP remains responsible for reviewing recordings, selecting formal measures when required, interpreting findings, and writing final diagnostic conclusions.
 
