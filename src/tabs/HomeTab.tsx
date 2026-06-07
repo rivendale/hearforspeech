@@ -79,6 +79,14 @@ export function HomeTab() {
 
   const latestAssessment = assessments[0];
   const latestClient = clients.find(client => client.id === latestAssessment?.clientId) || clients[0];
+  const recentClientAssessments = useMemo(
+    () => latestClient ? assessments.filter(assessment => assessment.clientId === latestClient.id).slice(0, 2) : [],
+    [assessments, latestClient]
+  );
+  const recentClientSessions = useMemo(
+    () => latestClient ? sessions.filter(session => session.clientId === latestClient.id).slice(0, 2) : [],
+    [sessions, latestClient]
+  );
   const analyzedLineCount = useMemo(
     () => assessmentItems.filter(item => item.advancedAnalysis?.status === 'complete').length,
     [assessmentItems]
@@ -159,7 +167,7 @@ export function HomeTab() {
           <Sparkles className="text-amber-500" size={22} />
         </div>
         <div className="mt-3 grid grid-cols-1 gap-2">
-          <QuickAction title="Start Assessment" detail="Choose a diagnostic pack, record line-by-line, then print notes and worksheet." icon={ClipboardList} onClick={() => startAssessment({ phase: 'patient_choice' })} />
+          <QuickAction title="Diagnostic Portal" detail="Choose a diagnostic pack, record line-by-line, then print notes and worksheet." icon={ClipboardList} onClick={() => startAssessment({ phase: 'patient_choice' })} />
           <QuickAction title="Start Therapy Session" detail="Trials, cueing, notes, home practice." icon={Activity} onClick={() => jumpTo('session')} />
           <QuickAction title="Review Results" detail="Progress, old sessions, exports, and data." icon={BarChart3} onClick={() => jumpTo('tracker')} />
         </div>
@@ -217,7 +225,7 @@ export function HomeTab() {
           <div className="mt-3 space-y-2">
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-base font-black text-slate-950">{latestClient.displayName}</p>
-              <p className="mt-1 text-xs text-slate-600">{latestClient.ageGroup || 'Saved patient'} · {sessions.length} therapy sessions · {assessments.length} assessments</p>
+              <p className="mt-1 text-xs text-slate-600">{latestClient.ageGroup || 'Saved patient'} · {recentClientSessions.length} recent therapy sessions · {recentClientAssessments.length} recent diagnostics</p>
             </div>
             {latestAssessment && (
               <TimelineRow
@@ -236,6 +244,27 @@ export function HomeTab() {
               action={queuedLineCount > 0 ? 'Review' : 'Start'}
               onClick={() => startAssessment({ phase: queuedLineCount > 0 ? 'load_student' : 'patient_choice' })}
             />
+            {recentClientAssessments.map(assessment => (
+              <TimelineRow
+                key={assessment.id}
+                title={assessment.status === 'completed' ? 'Completed diagnostic' : 'Diagnostic draft'}
+                detail={`${formatDate(assessment.updatedAt)} · ${assessment.primaryConcern || 'Speech clarity assessment'}`}
+                action="Open"
+                onClick={() => {
+                  writeAssessmentIntent({ phase: 'load_student', clientId: assessment.clientId, assessmentId: assessment.id });
+                  setActiveTab('assessment');
+                }}
+              />
+            ))}
+            {recentClientSessions.map(session => (
+              <TimelineRow
+                key={session.id}
+                title="Therapy session"
+                detail={`${formatDate(session.date || session.createdAt)} · ${session.totalTrials || 0} trials · ${session.independentAccuracy || 0}% independent`}
+                action="Data"
+                onClick={() => jumpTo('tracker')}
+              />
+            ))}
           </div>
         ) : (
           <div className="mt-3 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-950">

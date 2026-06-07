@@ -35,6 +35,7 @@ import {
   submitAssessmentSessionAnalysis,
   submitAdvancedAnalysis,
   type AnalysisCapabilities,
+  type AnalysisReviewFact,
   type AdvancedAnalysisResult
 } from '../utils/advancedAnalysis';
 import { decryptRecording, encryptRecording } from '../utils/crypto';
@@ -1062,6 +1063,49 @@ const formatMetric = (value: number | null | undefined, suffix = '', digits = 1)
   typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : 'n/a'
 );
 
+const patientPromptText = (item: AssessmentItem) => (
+  item.scriptText || item.prompt || 'Read this line when you are ready.'
+);
+
+const reviewFactsForAnalysis = (result?: AdvancedAnalysisResult): AnalysisReviewFact[] => {
+  if (!result) return [];
+  if (result.review_facts?.length) return result.review_facts;
+
+  const metrics = result.metrics;
+  if (!metrics) return [];
+
+  const caution = 'Objective descriptor for SLP review only.';
+  return [
+    {
+      label: 'Recording duration',
+      value: formatMetric(metrics.duration_seconds, '', 2),
+      unit: 'seconds',
+      source: result.engine.name,
+      caution
+    },
+    ...(metrics.pitch_mean_hz !== null && metrics.pitch_mean_hz !== undefined ? [{
+      label: 'Mean pitch',
+      value: formatMetric(metrics.pitch_mean_hz, '', 1),
+      unit: 'Hz',
+      source: result.engine.name,
+      caution
+    }] : []),
+    ...(metrics.mean_intensity_db !== null && metrics.mean_intensity_db !== undefined ? [{
+      label: 'Mean intensity',
+      value: formatMetric(metrics.mean_intensity_db, '', 1),
+      unit: 'dB',
+      source: result.engine.name,
+      caution
+    }] : []),
+    ...(metrics.voiced_fraction !== null && metrics.voiced_fraction !== undefined ? [{
+      label: 'Voiced fraction',
+      value: formatMetric(metrics.voiced_fraction, '', 2),
+      source: result.engine.name,
+      caution
+    }] : [])
+  ];
+};
+
 const summarizeAdvancedAnalysis = (items: AssessmentItem[]) => {
   const analyzedItems = items.filter(item => item.advancedAnalysis?.status === 'complete' && item.advancedAnalysis.result);
   if (!analyzedItems.length) {
@@ -1254,6 +1298,7 @@ export function AssessmentTab() {
   const [supportPlanDraft, setSupportPlanDraft] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
   const [recordingItemId, setRecordingItemId] = useState<string | null>(null);
+  const [patientReadItemId, setPatientReadItemId] = useState<string | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [customLinePrompt, setCustomLinePrompt] = useState('');
   const [customLineScript, setCustomLineScript] = useState('');
@@ -1324,6 +1369,7 @@ export function AssessmentTab() {
   const progressPct = activeItems.length > 0 ? Math.round((completedCount / activeItems.length) * 100) : 0;
   const remainingLineCount = activeItems.filter(item => item.status !== 'complete').length;
   const currentCoachItem = currentSectionItems.find(item => item.status !== 'complete') || currentSectionItems[0];
+  const patientReadItem = activeItems.find(item => item.id === patientReadItemId);
   const focusLabelSummary = focusTargets
     .map(target => FOCUS_OPTIONS.find(option => option.id === target)?.label || target)
     .join(', ');
@@ -2608,10 +2654,27 @@ export function AssessmentTab() {
 
   return (
     <div className="space-y-5">
+      {patientReadItem && (
+        <PatientReadMode
+          item={patientReadItem}
+          isRecording={recordingItemId === patientReadItem.id}
+          recordingLabel={recordingItemId === patientReadItem.id ? formatTime(recordingSeconds) : ''}
+          onRecord={() => startRecording(patientReadItem)}
+          onStop={stopRecording}
+          onDone={() => {
+            updateItem(patientReadItem.id, {
+              result: patientReadItem.result || 'Recorded/observed',
+              status: 'complete'
+            });
+            setPatientReadItemId(null);
+          }}
+          onClose={() => setPatientReadItemId(null)}
+        />
+      )}
       <section className="bg-gradient-to-br from-cyan-500/15 via-slate-800 to-indigo-500/10 border border-cyan-400/20 p-5 rounded-3xl shadow-xl space-y-4">
         <div className="flex items-start justify-between gap-3 text-left">
           <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-cyan-200">Assessment Guide</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-cyan-200">Diagnostic Portal</p>
             <h2 className="text-xl font-black tracking-tight text-white">{selectedClient?.displayName || 'Student'} · age {activeAssessment.studentAge || '—'}</h2>
             <p className="text-xs text-slate-400 mt-1">{activeAssessment.primaryConcern || 'Speech clarity/intelligibility assessment'}</p>
           </div>
@@ -2676,6 +2739,11 @@ export function AssessmentTab() {
               <p className="text-[10px] text-slate-500 mt-1">
                 {analyzedCount}/{analyzableItems.length} recorded lines analyzed · {parselmouthEngine?.version ? `Parselmouth ${parselmouthEngine.version}` : 'Parselmouth status pending'}
               </p>
+              {analysisCapabilities?.limits && (
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Upload limit {analysisCapabilities.limits.max_upload_mb} MB · batch limit {analysisCapabilities.limits.max_batch_files} recordings
+                </p>
+              )}
             </div>
             <label className={`flex items-center justify-between gap-3 min-h-[48px] rounded-2xl border px-3 text-xs font-extrabold cursor-pointer ${FOCUS_CLASS} ${
               autoAnalysisEnabled ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'
@@ -2801,13 +2869,22 @@ export function AssessmentTab() {
         <section className="bg-slate-800 border border-cyan-500/25 p-5 rounded-3xl shadow-xl text-left space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-cyan-200">Do this now</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-cyan-200">Diagnostic Portal · Current line</p>
               <h3 className="text-lg font-black text-white mt-1">{currentCoachItem.sectionTitle}</h3>
               <p className="text-xs text-slate-400 mt-1">{currentCoachItem.prompt}</p>
             </div>
-            <span className="shrink-0 rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-[10px] font-extrabold uppercase text-slate-300">
-              Step {sectionIndex + 1}/{activeSectionKeys.length}
-            </span>
+            <div className="shrink-0 grid gap-2">
+              <span className="rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-[10px] font-extrabold uppercase text-slate-300 text-center">
+                Step {sectionIndex + 1}/{activeSectionKeys.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPatientReadItemId(currentCoachItem.id)}
+                className={`${BUTTON_CLASS} bg-cyan-500 text-slate-950 px-3 text-[10px] uppercase`}
+              >
+                Patient Read
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -2864,6 +2941,60 @@ export function AssessmentTab() {
               )}
             </div>
           </div>
+
+          <details open className="bg-white border border-cyan-100 rounded-3xl p-4 text-slate-950 shadow-sm">
+            <summary className="cursor-pointer text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
+              SLP scoring drawer
+            </summary>
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {resultOptionsForKind(currentCoachItem.kind).map(option => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => updateItem(currentCoachItem.id, { result: option, status: 'complete' })}
+                    className={`${BUTTON_CLASS} px-2 text-[11px] ${
+                      currentCoachItem.result === option
+                        ? 'bg-cyan-600 text-white'
+                        : 'bg-sky-50 border border-sky-100 text-slate-900'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+              {currentCoachItem.kind === 'stimulability' && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {CUE_LEVELS.map(cue => (
+                    <button
+                      key={cue.value}
+                      type="button"
+                      onClick={() => updateItem(currentCoachItem.id, { cueLevel: cue.value, status: 'in_progress' })}
+                      className={`${BUTTON_CLASS} text-[10px] ${
+                        currentCoachItem.cueLevel === cue.value
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white border border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {cue.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {quickNoteOptionsForItem(currentCoachItem).slice(0, 6).map(note => (
+                  <button
+                    key={note}
+                    type="button"
+                    onClick={() => appendQuickNote(currentCoachItem, note)}
+                    className={`${BUTTON_CLASS} min-h-[40px] px-3 text-[10px] bg-white border border-slate-200 text-slate-700`}
+                  >
+                    + {note}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </details>
         </section>
       )}
 
@@ -3131,6 +3262,92 @@ export function AssessmentTab() {
   );
 }
 
+function PatientReadMode({
+  item,
+  isRecording,
+  recordingLabel,
+  onRecord,
+  onStop,
+  onDone,
+  onClose
+}: {
+  item: AssessmentItem;
+  isRecording: boolean;
+  recordingLabel: string;
+  onRecord: () => void;
+  onStop: () => void;
+  onDone: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[120] bg-sky-50 text-slate-950 p-4 sm:p-6 flex flex-col">
+      <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-4">
+        <header className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-700">Patient read mode</p>
+            <h2 className="text-xl font-black text-slate-950">Read when ready</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`${BUTTON_CLASS} bg-white border border-sky-200 px-4 text-xs text-sky-900`}
+          >
+            Back to SLP
+          </button>
+        </header>
+
+        <main className="flex flex-1 flex-col justify-center rounded-[2rem] border-2 border-sky-200 bg-white p-5 sm:p-8 text-center shadow-2xl shadow-sky-200/70">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{item.sectionTitle}</p>
+          <p className="mt-5 text-3xl sm:text-5xl font-black leading-tight text-slate-950 select-text">
+            {patientPromptText(item)}
+          </p>
+          <p className="mt-5 text-base font-semibold text-slate-600">
+            Speak in your regular voice. It is okay to pause or try again.
+          </p>
+        </main>
+
+        <footer className="grid grid-cols-2 gap-3">
+          {isRecording ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className={`${BUTTON_CLASS} col-span-2 bg-rose-600 text-white text-base flex items-center justify-center gap-2`}
+            >
+              <Square size={18} />
+              Stop Recording {recordingLabel}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onRecord}
+              className={`${BUTTON_CLASS} col-span-2 bg-sky-600 text-white text-base flex items-center justify-center gap-2`}
+            >
+              <Mic size={18} />
+              Record This Line
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onRecord}
+            disabled={isRecording}
+            className={`${BUTTON_CLASS} bg-white border border-sky-200 text-sky-900 disabled:opacity-50`}
+          >
+            Re-record
+          </button>
+          <button
+            type="button"
+            onClick={onDone}
+            disabled={isRecording}
+            className={`${BUTTON_CLASS} bg-emerald-600 text-white disabled:opacity-50`}
+          >
+            Done
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 function AssessmentItemCard({
   item,
   isRecording,
@@ -3175,6 +3392,7 @@ function AssessmentItemCard({
   const listenFor = listenForItem(item);
   const quickNotes = quickNoteOptionsForItem(item);
   const metrics = analysisResult?.metrics;
+  const reviewFacts = reviewFactsForAnalysis(analysisResult);
 
   return (
     <div className={`bg-slate-800 border p-5 rounded-3xl shadow-xl space-y-4 text-left ${statusTone(item)}`}>
@@ -3391,6 +3609,7 @@ function AssessmentItemCard({
                   <span>Intensity: {metrics?.mean_intensity_db?.toFixed(1) || '—'} dB</span>
                   <span>Engine: {analysisResult.engine.name}</span>
                 </div>
+                {reviewFacts.length > 0 && <AnalysisFactCards facts={reviewFacts} />}
                 <p className="text-[11px] text-slate-400 leading-relaxed">
                   {analysisResult.clinician_summary}
                 </p>
@@ -3418,4 +3637,22 @@ function KindIcon({ kind }: { kind: AssessmentItemKind }) {
   if (kind === 'stimulability') return <PauseCircle className="text-amber-300 shrink-0" size={20} />;
   if (kind === 'checklist') return <CheckCircle2 className="text-emerald-300 shrink-0" size={20} />;
   return <AlertTriangle className="text-slate-400 shrink-0" size={20} />;
+}
+
+function AnalysisFactCards({ facts }: { facts: AnalysisReviewFact[] }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {facts.slice(0, 6).map(fact => (
+        <div key={`${fact.label}-${fact.value}-${fact.unit || ''}`} className="rounded-2xl bg-white border border-indigo-100 p-3 text-slate-950">
+          <p className="text-[9px] font-black uppercase tracking-wider text-indigo-700">{fact.label}</p>
+          <p className="mt-1 text-lg font-black">
+            {fact.value}{fact.unit ? ` ${fact.unit}` : ''}
+          </p>
+          <p className="mt-1 text-[10px] font-semibold text-slate-500">
+            Source: {fact.source}. {fact.caution || 'SLP review only.'}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
 }

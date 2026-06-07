@@ -17,7 +17,7 @@ Hear for Speech supports SLP judgment. It does not diagnose, prescribe treatment
 The app opens to a no-doc **Home** screen:
 
 1. Tap **New Patient** or **Load Patient**.
-2. Choose **Start Assessment**, **Start Therapy Session**, or **Review Results**.
+2. Choose **Diagnostic Portal**, **Start Therapy Session**, or **Review Results**.
 3. Pick an assessment pack such as **10-min screen**, **Full articulation / intelligibility**, **/r/ deep dive**, **Voice / resonance**, **Connected speech**, **School participation**, or **Listener Check**.
 4. Follow the line-by-line prompts with the large record bar.
 5. Let the analysis queue move recordings from **Queued** to **Analyzing** to **Ready**.
@@ -98,7 +98,7 @@ Use **Assess** when the SLP has only a phone/tablet and needs to start quickly:
    - **Listener Check**
 4. Review the **Patient read-ahead worksheet** and tap **Print / Save PDF Worksheet** if the student needs lines to read before recording.
 5. Confirm recording/assessment consent.
-6. Follow each line: say the script, record when useful, listen for the listed observations, tap a result, and add one-tap notes.
+6. Follow each line in the **Diagnostic Portal**: show **Patient Read** when the student needs a clean prompt screen, record when useful, then use the SLP scoring drawer.
 7. Use **Next Line** to jump to the next unfinished item, or add custom lines whenever the clinician hears something unexpected.
 8. Generate editable diagnostic summary, school note, SOAP note, recommendations, and therapy/home-practice starter text.
 
@@ -148,11 +148,14 @@ Each assessment line includes:
 
 - The exact SLP prompt
 - Teen-friendly “Say this” script wording
+- A patient-facing **Patient Read** mode that hides private notes and shows a large readable prompt
 - Result buttons such as clear, distorted, substituted, omitted, concern, monitor, or improved with cue
+- A fast SLP scoring drawer for result, cueing, and one-tap note ideas
 - Optional cue-level tagging
 - Quick analysis tags for word position, speech context, participation, cue response, and self-monitoring
 - SLP notes
 - A one-tap recording control linked to that assessment item
+- Backend **review facts** shown as objective metric cards for SLP review only
 
 Assessment audio is saved locally through the same recording storage used elsewhere in the app. If local security is enabled, recordings are encrypted using the existing local master key flow.
 
