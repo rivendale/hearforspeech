@@ -10,6 +10,7 @@ html,
 body {
   max-width: 100%;
   overflow-x: hidden;
+  min-height: 100%;
 }
 
 body {
@@ -17,14 +18,34 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background-color: #f7fbff;
   color: #0f172a;
-  overscroll-behavior-y: contain; /* Prevents bounce scroll on mobile */
+  overscroll-behavior-y: contain;
 }
 
 /* This resets the default vite #root div to be full screen for our PWA */
 #root {
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.hfs-app-shell {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.hfs-app-main {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
 }
 
 /* Prevent native tap highlight overlays on iOS and prevent accidental text selections */
