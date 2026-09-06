@@ -1,40 +1,98 @@
-name: Deploy to GitHub Pages
+name: Deploy to Cloudflare Pages
+
+# WHY THIS IS NOT GITHUB PAGES ANY MORE (2026-09-06).
+#
+# hearforspeech.com served from GitHub Pages until its Let's Encrypt certificate
+# expired on 2026-09-04 and would not renew. GitHub's own API reported
+# `is_https_eligible: true` while the certificate sat in `bad_authz` — "The ACME
+# authorization is in a bad state. We need to start over." Starting over is the
+# only remedy GitHub offers, and it did not work: after a full clear-and-restore
+# of the custom domain the state was unchanged across 40 consecutive polls over
+# 40 minutes.
+#
+# That is a certificate this project cannot fix from the outside. Cloudflare
+# terminates TLS at the edge instead, so there is no origin certificate to
+# expire at all. The origin stays exactly `https://hearforspeech.com`, which
+# matters more here than anywhere: IndexedDB is partitioned by scheme+host, and
+# every clinician's encrypted patient records live in that partition.
 
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: npm
+
+      # `npm ci` rather than `npm install`: the lockfile is committed, and a
+      # deploy that silently resolves different dependencies than the one that
+      # was reviewed is not the artifact anybody approved.
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
       - name: Build
         run: npm run build
-      - name: Upload Artifacts
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './dist'
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+      # FAIL LOUDLY IF THE CREDENTIAL IS MISSING, rather than letting the deploy
+      # step fail with a vendor error nobody can read. A missing secret is an
+      # operator problem and should say so in one line.
+      - name: Check deploy credentials are present
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=""
+          [ -n "$CF_API_TOKEN" ]  || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$CF_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing — the site will NOT update until these exist."
+            exit 1
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # THROUGH THE ENVIRONMENT, not interpolated into the shell line. A
+          # `${{ }}` expression is pasted into the script before bash sees it,
+          # so a branch named with shell metacharacters would execute as code in
+          # a job holding the deploy credential. Raised by Astra.
+          DEPLOY_BRANCH: ${{ github.ref_name }}
+        # The REF's name, not a hardcoded `main`. Cloudflare
+        # treats the production branch as production and every other name as a
+        # preview, so this is what keeps a manual `workflow_dispatch` run from a
+        # feature branch off the live site. Hardcoding `main` here would publish
+        # whatever ref was dispatched straight over the clinical app. Raised by
+        # Astra.
+        run: npx --yes wrangler@4 pages deploy dist --project-name=hearforspeech --branch="$DEPLOY_BRANCH"
+
+      # The deploy is not finished because the vendor said "uploaded". Fetch the
+      # live origin and assert it is really serving, over TLS that validates.
+      #
+      # Production only: a preview deploy does not change the live site, so
+      # checking the live origin after one would assert something this run did
+      # not do -- a check that passes for the wrong reason.
+      - name: Verify the live site
+        if: github.ref == 'refs/heads/main'
+        run: |
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /tmp/live.html -w '%{http_code}' --max-time 25 https://hearforspeech.com/ || echo 000)
+            if [ "$code" = "200" ] && grep -q "<title>" /tmp/live.html; then
+              echo "live: HTTP $code, title present"; exit 0
+            fi
+            echo "attempt $i: HTTP $code — retrying"; sleep 10
+          done
+          echo "::error::hearforspeech.com did not serve a 200 with a rendered document after deploy"
+          exit 1
