@@ -70,7 +70,7 @@ jobs:
           # so a branch named with shell metacharacters would execute as code in
           # a job holding the deploy credential. Raised by Astra.
           DEPLOY_BRANCH: ${{ github.ref_name }}
-        # `--branch=${{ github.ref_name }}`, NOT a hardcoded `main`. Cloudflare
+        # The REF's name, not a hardcoded `main`. Cloudflare
         # treats the production branch as production and every other name as a
         # preview, so this is what keeps a manual `workflow_dispatch` run from a
         # feature branch off the live site. Hardcoding `main` here would publish
