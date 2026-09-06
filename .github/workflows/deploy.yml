@@ -65,13 +65,18 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # THROUGH THE ENVIRONMENT, not interpolated into the shell line. A
+          # `${{ }}` expression is pasted into the script before bash sees it,
+          # so a branch named with shell metacharacters would execute as code in
+          # a job holding the deploy credential. Raised by Astra.
+          DEPLOY_BRANCH: ${{ github.ref_name }}
         # `--branch=${{ github.ref_name }}`, NOT a hardcoded `main`. Cloudflare
         # treats the production branch as production and every other name as a
         # preview, so this is what keeps a manual `workflow_dispatch` run from a
         # feature branch off the live site. Hardcoding `main` here would publish
         # whatever ref was dispatched straight over the clinical app. Raised by
         # Astra.
-        run: npx --yes wrangler@4 pages deploy dist --project-name=hearforspeech --branch="${{ github.ref_name }}"
+        run: npx --yes wrangler@4 pages deploy dist --project-name=hearforspeech --branch="$DEPLOY_BRANCH"
 
       # The deploy is not finished because the vendor said "uploaded". Fetch the
       # live origin and assert it is really serving, over TLS that validates.
